@@ -33,7 +33,7 @@ getopt("Hailprt", \%option);
 
 if (defined $option{h}) {
     print <<EOF;
-Usage: ./czech_book_search.pl
+Usage: ./kosmas_search.pl
   -h,       help
   -a <author>   author of a book
   -i <isbn>
