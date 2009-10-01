@@ -182,6 +182,7 @@ sub get_movie_title {
 	$_[0] =~ /<h1.*?>\s*(.*?)\s*<\/h1>/i;
 	my $title = $1;
 	$title =~ s/\s*$//;
+#	warn $title."\n";
 	$title;
 }
 
@@ -219,9 +220,9 @@ sub get_movie_person {
 sub get_movie_info {
 	my $html = shift;
 	my ($national, %h, $time, $genres,$info );
-	$html =~ /<\/h1>\s*<br>\s*<br>\s*(?:<table.*?<\/table>)?\s*<br>\s*<b>(.*?)<\/b>\s*<BR>\s*<BR>\s*<b>\s*Režie:/i;
+	$html =~ /<\/h1>\s*<br>\s*<br>\s*(?:<table.*?<\/table>)?\s*<br>\s*<b>(.*?)<\/b>\s*<BR>\s*<BR>\s*/i;
 	$html = $1;
-#	print "$html\n";
+#	warn "$html\n";
 	$html =~ s/&nbsp;/ /g;
 	($genres,$info) = split /\s*<br>\s*/i, $html;
 	@{ $h{genre} } = split /\s*\/\s*/, $genres if $genres;
