@@ -11,13 +11,16 @@
 # REQUIREMENTS:  liblwp-useragent-perl
 #		 libhttp-request-perl
 #		 libxml-writer-perl
-#		 libdigest-md5-file-perl	      		    
+#		 libdigest-md5-file-perl
+#		 libhtml-trebuilder-perl
 #         BUGS:  ---
 #        NOTES:  ---
 #       AUTHOR:  Martin Janota (mjan), <janota.m@cce.cz>
 #      COMPANY:  CCE
-#      VERSION:  0.1
-#      CREATED:  30.11.08 11:56:06 CET
+#      VERSION: 0.2 - new version, changes csfd html
+#      			0.1
+#      CREATED: 0.2 18.04.11 
+#      			0.1 30.11.08 11:56:06 CET
 #     REVISION:  ---
 #===============================================================================
 
@@ -30,6 +33,7 @@ use HTTP::Request::Common qw { POST };
 use Data::Dumper;
 use XML::Writer;
 use IO::File;
+use HTML::TreeBuilder;
 
 use Digest::MD5;
 use MIME::Base64 qw(encode_base64);
@@ -115,12 +119,12 @@ sub download_file {
 
 sub get_movie_ref {
 	my $title = shift;
-	my $searchaddr = $ADDRESS . '/hledani-filmu-hercu-reziseru-ve-filmove-databazi/';
+	my $searchaddr = $ADDRESS . '/hledat/';
 	my @words = split /\s+/, $title;
 	my (@arefs, %hrefs, $html);
 	foreach ( @words ) {
 		my %h;
-		$html = get_page_post($searchaddr,[ search => $_ ]); 
+		$html = get_page_get($searchaddr . "?q=$_"); 
 		$html =~ s/\n//g;
 #		print $html ."\n";
 		while ( $html =~ /href=("|')(\/film\/\d+.*?)\1/g ) { 
@@ -133,6 +137,7 @@ sub get_movie_ref {
 	foreach ( keys %hrefs ) {
 		push @{ $arefs[$hrefs{$_}] }, $_;
 	}
+#	print Dumper($arefs[-1]);
 	return @{ $arefs[-1] };
 }
 
@@ -152,15 +157,19 @@ sub get_movie_data {
 	my $html = get_page_get($ref);
 	$html =~ s/\n//g;
 #	print $html ."\n";
-	%movie = get_movie_info($html);
+	my $Tree = HTML::TreeBuilder->new();
+	$Tree->parse($html);
+	$Tree->eof();
+	my $info = $Tree->look_down(_tag => 'div', class => 'info' );
+	%movie = get_movie_info($info);
 	$movie{title} = get_movie_title($html);
-	@{ $movie{director} }= get_movie_person($html,'reziser');
-	@{ $movie{cast} } = get_movie_person($html,'herec');
+	@{ $movie{director} }= get_movie_person($info,'Režie');
+	@{ $movie{cast} } = get_movie_person($info,'Hrají');
 	for ( my $i = 0; $i < scalar(@{ $movie{cast} }); $i++ ) {
 #		print $i."\n";
 		$movie{cast}[$i] = [ $movie{cast}[$i] ];  
 	}
-	$movie{plot} = get_movie_plot($html,$ref);
+	$movie{plot} = get_movie_plot($Tree);
 	my %img = get_image($html);
 	if ( %img ) {
 		$movie{cover} = delete $img{cover};
@@ -196,14 +205,14 @@ sub get_movie_title {
 #===============================================================================
 
 sub get_movie_person {
-	my $html = shift;
-	my $person = shift;
+	my ($info, $person) = @_;
+	my $html = $info->look_down(_tag => 'div')->look_down(_tag => 'h4',
+			sub { $_[0]->as_trimmed_text =~ /$person:/ }  
+		);
+	return unless $html;
 	my (@people,$p);
-	while ( $html =~ /<a\s+href="\/$person\/.*?".*?>(.*?)<\/a>/gi ) {
-		$p = $1;
-		$p =~ s/(&nbsp;)/ /g;
-		$p =~ s/\s*$//;
-		push @people, $p;
+	foreach ( $html->right()->look_down(_tag => 'a', href => qr/tvurce/ ) ) {
+		push @people, $_->as_trimmed_text;
 	}
 	@people;
 }
@@ -218,16 +227,14 @@ sub get_movie_person {
 #===============================================================================
 
 sub get_movie_info {
-	my $html = shift;
-	my ($national, %h, $time, $genres,$info );
-	$html =~ /<\/h1>\s*<br>\s*<br>\s*(?:<table.*?<\/table>)?\s*<br>\s*<b>(.*?)<\/b>\s*<BR>\s*<BR>\s*/i;
-	$html = $1;
+	my $Tree = shift;
+	my ($national, %h, $time, $genres,$info, $genre );
+	$genre = $Tree->look_down(_tag => 'p', class => 'genre');
+	$info = $Tree->look_down(_tag => 'p', class => 'origin');
 #	warn "$html\n";
-	$html =~ s/&nbsp;/ /g;
-	($genres,$info) = split /\s*<br>\s*/i, $html;
-	@{ $h{genre} } = split /\s*\/\s*/, $genres if $genres;
+	@{ $h{genre} } = split /\s*\/\s*/, $genre->as_trimmed_text if $genre;
 	if ($info) {
-		($national,$h{year},$time) = split /\s*,\s*/, $info;
+		($national,$h{year},$time) = split /\s*,\s*/, $info->as_trimmed_text;
 		@{ $h{nationality} } = split /\s*\/\s*/, $national if $national;
 		( $h{time} ) = ( $time =~/(\d+)/ ) if $time;
 	}
@@ -246,14 +253,15 @@ sub get_movie_info {
 
 
 sub get_movie_plot {
-	my $html = shift;
-	$html =~ /href="(\?text=\d+)"/;
-	if ($1) {
-		$html = get_page_get(shift() . $1);
-		$html =~ s/\n//g;
-	}
-	$html =~ /<div style='float:left;width:425px;padding-top:10px;font-weight:normal'>(.*?)<\/div>/;
-	return $1 || '';
+	my $Tree = shift;
+	my $div = $Tree->look_down( _tag => 'div',
+		class => 'header',
+		sub{ $_[0]->as_trimmed_text =~ /Obsah/ }) ;
+	
+	return '' unless $div;
+	my $li = $div->right()->look_down(_tag => 'li');
+	return '' unless $li;
+	return $li->as_trimmed_text;
 }
 
 #===  FUNCTION  ================================================================
