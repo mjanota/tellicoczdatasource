@@ -155,6 +155,7 @@ sub get_movie_data {
 	my %movie;
 #	print $ref. "\n";
 	my $html = get_page_get($ref);
+	$html =~ s/&nbsp;/ /gs;
 	$html =~ s/\n//g;
 #	print $html ."\n";
 	my $Tree = HTML::TreeBuilder->new();
@@ -162,7 +163,7 @@ sub get_movie_data {
 	$Tree->eof();
 	my $info = $Tree->look_down(_tag => 'div', class => 'info' );
 	%movie = get_movie_info($info);
-	$movie{title} = get_movie_title($html);
+	$movie{title} = get_movie_title($info);
 	@{ $movie{director} }= get_movie_person($info,'Režie');
 	@{ $movie{cast} } = get_movie_person($info,'Hrají');
 	for ( my $i = 0; $i < scalar(@{ $movie{cast} }); $i++ ) {
@@ -188,11 +189,7 @@ sub get_movie_data {
 #===============================================================================
 
 sub get_movie_title {
-	$_[0] =~ /<h1.*?>\s*(.*?)\s*<\/h1>/i;
-	my $title = $1;
-	$title =~ s/\s*$//;
-#	warn $title."\n";
-	$title;
+	return  $_[0]->look_down( _tag => 'h1')->as_trimmed_text;
 }
 
 
