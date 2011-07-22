@@ -2,14 +2,18 @@
 
 use strict;
 
+use LWP::Simple;
 use Getopt::Std;
 use Data::Dumper;
+#use Smart::Comments;
+use HTML::TreeBuilder;
+use Encode;
 use Cz::Cstocs;
 sub win1250_utf8;
 *win1250_utf8 = new Cz::Cstocs '1250', 'utf8';
 sub utf8_ascii;
 *utf8_ascii = new Cz::Cstocs 'utf8', 'ascii';
-
+use utf8;
 use XML::Writer;
 use IO::File;
 
@@ -21,6 +25,7 @@ my $ADDRESS = 'http://www.kosmas.cz';
 my $TMPADDR = '/tmp/czech_book_search_' . $$;
 my @BOOKS;
 my @IMAGES;
+my $html;
 
 mkdir $TMPADDR;
 #####################################################
@@ -38,7 +43,6 @@ Usage: ./kosmas_search.pl
   -a <author>   author of a book
   -i <isbn>
   -l <ilustrator>
-  -o <original> Original title
   -p <publisher>
   -r <translator>
   -t <title>
@@ -47,42 +51,42 @@ EOF
 }
 
 my %optw = (
-    a => 'autor',
-	i => 'isbn',
-    l => 'ilustrace',
-	o => 'original',
-    p => 'vyrobce',
-    r => 'preklad',
-    t => 'titul',     
+    a => 'Author',
+	i => 'ISBN_EAN',
+    l => 'Illustrator',
+    p => 'Publisher',
+    r => 'Translator',
+    t => 'Title',     
 );
 
-my $post_data = join "&", ('hled=Hledej...','pgCnt=100', 
+my $post_data = join "&", ('sortBy=datum', 
     map  { 
 	    $option{$_} =~ s/(\s+)/+/g;
-	    $optw{$_} . "=" . lc( utf8_ascii($option{$_}) );
+	    "Filters." . $optw{$_} . "=" . lc( utf8_ascii($option{$_}) );
 	 } grep( $option{$_}, keys %option ) );
-#print "$post_data\n";
+### $post_data
 
-`wget -q -O $TMPADDR/vysledek.html  --post-data='$post_data' $ADDRESS/hledani_vysledek.asp`;
+$html = `wget -q -O '-'  --post-data='$post_data' $ADDRESS/hledani`;
+
+## $html;
+
  
-my @refs;
-my $v = get_ref(\@refs);
+my @refs = get_ref($html);
 
-exit 0 if $v == -1;
 
-if ( $v == 1) {
-	foreach (my $i = 0; $i < scalar(@refs); $i++) {
-		`wget -q -O $TMPADDR/book_${i}.html $refs[$i]`;
-		push @BOOKS, html2perl("$TMPADDR/book_${i}.html");
-	}	
-} else {
-	push @BOOKS, html2perl("$TMPADDR/vysledek.html");
-}
+exit 0 if scalar @refs < 1;
 
-#print Dumper(\@BOOKS);
+foreach my $ref (@refs) {
+		$html = `wget -q -O '-' $ADDRESS.$ref`;
+#		$html = get($ADDRESS.$ref);
+		push @BOOKS, html2perl($html);
+}	
+
+
+### @BOOKS
+
 &perl2xml if scalar @BOOKS > 0;
 
-`rm -r $TMPADDR`;
 
 #####################################################################
 #					Functions										#
@@ -90,79 +94,60 @@ if ( $v == 1) {
 
 
 sub get_ref {
-	my $refs = shift;
-    my $txt = get_html("$TMPADDR/vysledek.html");
-	$txt = win1250_utf8($txt);
-	if ( $txt =~ /<!-- POPIS -->/ ) {
-		return 0
+	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
+	## $Tree
+	my @a =  $Tree->look_down( _tag => 'a', class => 'titul-title');
+	my @refs ;
+
+	foreach my $ref (@a) {
+		push @refs, $ref->attr('href');
 	}
-	if ( $txt =~ /nebyl nalezen žádný titul/) {
-		return -1;
-	} 
-	@$refs =  $txt =~ /<a href="(http:\/\/www\.kosmas\.cz\/knihy\/\S+?)">/g;
-	return 1
+
+	return @refs;
 }
 
-sub get_html {
-    my $file = shift;
-    my $txt;
-    open (H, $file) or die "Couldn't open $file: $!\n";
-    while (<H>) {
-		chomp;
-		$txt .= $_;
-   	}
-    close H;
-    return $txt;
-}
 
 sub html2perl {
-	my %h;
-	my $html = get_html(shift);
-	$html =  win1250_utf8($html);
-	$html =~ /\<\!-- POPIS --\>(.*?)\<\!--/;
-	get_data(\%h,$1);
-	$html =~ /\<\!-- HLAVICKA --\>(.*?)\<\!-- HLAVICKA KONEC --\>/;
-	get_titul(\%h,$1);
-	$html =~ /<img src="(http:\/\/www\.kosmas\.cz\/obalky\/\S+?)"/;
-	push @IMAGES, get_image(\%h,$1) if $1;
+	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
+#my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
+	my %h;	
+	get_data(\%h,$Tree);
+	get_titul(\%h,$Tree);
+
+	my $img = $Tree->look_down(_tag => 'img', class=> 'detail-cover-image');
+	push @IMAGES, get_image(\%h,$img->attr('src')) if $img;
 	return \%h; 
 #	print Dumper(\%H);
 }
 
 sub get_data {
 	my $h = shift;
-	my $data = shift;
-	$data =~ s/<br>|<\/h2>/\n/ig;
-	$data =~ s/<.*?>|&nbsp;//g;
-	my ($row);
-	while ($data =~ s/(.*)\n// ) {
-		$row = $1;
-		$row =~ s/^\s+//;
-		$row =~ s/\s+/ /g;
-		next if $row =~ /^\s*$/;
-		$row =~ /^(nakladatel|isbn|orig|form|rok)/i;
-		my $fce = 'get_' . lc($1);
-		eval {
-			no strict;
-			&{$fce}($h,$row) if defined &$fce;		
+	my $tree = shift;
+	my $div = $tree->look_down(_tag => 'div', class => 'titul-info-left');
+	my @lis = $div->look_down( _tag => 'li');
+	foreach ( @lis ) {
+		if ( $_->as_trimmed_text =~ /(nakladatel|isbn|orig|rok|eklad|popis)/i ) {
+			my $fce = 'get_' . lc($1);
+			eval {
+				no strict;
+				### $fce
+				&{$fce}($h,$_->as_trimmed_text) if defined &$fce;		
 	
-		};
-		die $@ if ($@);
+			};
+			die $@ if ($@);
+		}
 	}
 }
 
 sub get_titul {
 	my $h = shift;
-	my $data = shift;
-	$data =~ /<td>(.*?)<hr/;
-	$data = $1;
-	$data =~ /<h1>(.*?)<\/h1>(.*)/i;
-	$$h{title} = $1;
-	if ($2) {
-		@{ $$h{author} } = map {
-			/<a.*?>(.*?)<\/a>/;
-			get_name($1);
-		} split ', ', $2;
+	my $tree = shift;
+	my $head = $tree->look_down( _tag => 'div', class => 'detail-heading');
+	return unless $head;
+	$h->{title} = $head->look_down( _tag => 'h1')->as_trimmed_text;
+	my @authors = $head->look_down( _tag => 'h2', class => 'authors' );
+	foreach my $auth ( @authors ) {
+		push @{ $h->{author} }, $auth->as_trimmed_text; 
 	}
 }
 
@@ -171,23 +156,22 @@ sub get_image {
 	my $h = shift;
 	my $src = shift;
 	my %img;
-	my $cover = $TMPADDR . "/obalka". $I++ .".gif";
-	`wget -q -O $cover $src`;
-	my $imgname = generate_imgname($cover) . ".gif";
+	my $imgdata = `wget -q -O '-' $ADDRESS.$src`;
+	my $imgname = generate_imgname($imgdata) . ".gif";
 	$$h{cover} = $imgname; 	
 	$img{format} = 'GIF';
 	$img{id} = $imgname;
 	$img{width} = 100;
 	$img{height} = 150;
 #	$img{'link'} = 'true';
-	$img{data} = file_encode64($cover); 
+	$img{data} = encode_base64($imgdata); 
 #	print "$src.\n";
 	return { %img };
 }
 
 sub get_nakladatel {
 	my ($h,$r) = @_;
-	my ($p,$s) = $r =~ /^Nakladatel: (.*?)(?:, edice: (.*);)?$/;
+	my ($p,$s) = $r =~ /^Nakladatel:\s*(.*?)(?:, edice: (.*);)?$/;
 	@{$$h{publisher}} = split ',', $p;
 	$$h{series} = $s if $s;
 }
@@ -200,23 +184,32 @@ sub get_isbn {
 
 sub get_orig {
 	my ($h,$r) = @_;
-	my ($p,$s) = $r =~ /^Originál: (.*?)(?:, překlad: (.*))?$/;
-	$$h{'název-originálu'} = $p if $p;
-	@{ $$h{translator} } = map{ get_name($_) } (split ',', $s) if $s;
-#	$$h{translator} =  get_name($s) if $s;
+	my ($p) = $r =~ /Originál:\s*(.*?)\s*$/;
+	$$h{encode_utf8('název-originálu')} = $p if $p;
 }
 
-sub get_form {
+sub get_eklad {
 	my ($h,$r) = @_;
-	$r =~ /^Formát: (.*?)$/;
-	my ($p, undef, $l, $b) = split ', ', $1;
-	$p =~ /(\d+)\s*stran/;
-	$$h{pages} = $1 if $1; 
-	$$h{language} = $l if $l;
-	if ($b) {
-	    $b =~ /^(.*?)\s+vazba/;
-	    $$h{binding} = $1 if $1;
+	### $r
+	my ($s) = $r =~ /eklad:\s*(.*?)\s*$/;
+	my @eklads = split /,\s*/, $s;
+	for ( my $i = 0; $i < scalar(@eklads); $i+=2) {
+		push @{ $$h{translator} }, $eklads[$i] . ", " . $eklads[$i+1]
 	}
+}
+
+sub get_popis {
+	my ($h,$r) = @_;
+	## $r
+	$r =~ /Popis:\s*(.*?)$/;
+	my @a = split ', ', $1;
+	if (scalar(@a) == 4 ) {
+		shift @a;
+	}
+	$a[1] =~ /(\d+)\s*stran/;
+	$$h{pages} = $1 if $1; 
+	$$h{language} = $a[2];
+	$$h{binding} = $a[0];
 }
 
 sub get_rok {
@@ -233,24 +226,12 @@ sub get_name {
 }
 
 sub generate_imgname {
-	my $file = shift;
 	my $ctx = Digest::MD5->new();
-	open (M,$file);
-	$ctx->addfile(*M);
+	$ctx->add($_[0]);
 	return $ctx->hexdigest;
-	close M;
 #	print $ctx->hexdigest ."\n";
 }
 
-sub file_encode64 {
-	my $file = shift;
-	open (E,$file);
-	my $txt;
-	while(<E>) {
-		$txt .= $_;	
-	}
-	return encode_base64($txt);
-}
 
 sub perl2xml {
 	my $fh = new IO::File(*STDOUT);
@@ -268,11 +249,11 @@ sub perl2xml {
 				if ( ref($BOOKS[$i]->{$key}) eq 'ARRAY' ) {
 					$out->startTag($key.'s');
 						foreach (@{ $BOOKS[$i]->{$key} }) {
-							$out->dataElement($key,$_);
+							$out->dataElement($key,$_ ? encode_utf8($_): '');
 						}
 					$out->endTag($key.'s');
 				} else {
-					$out->dataElement($key,$BOOKS[$i]->{$key});
+					$out->dataElement($key,$BOOKS[$i]->{$key} ? encode_utf8($BOOKS[$i]->{$key}) : '');
 				}
 		}
 			$out->endTag("entry");
