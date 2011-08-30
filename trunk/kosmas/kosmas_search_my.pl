@@ -173,7 +173,7 @@ sub get_nakladatel {
 	my ($h,$r) = @_;
 	my ($p,$s) = $r =~ /^Nakladatel:\s*(.*?)(?:, edice: (.*);)?$/;
 	@{$$h{publisher}} = split ',', $p;
-	$$h{series} = $s if $s;
+	$$h{edice} = $s if $s;
 }
 
 sub get_isbn {
@@ -194,7 +194,8 @@ sub get_eklad {
 	my ($s) = $r =~ /eklad:\s*(.*?)\s*$/;
 	my @eklads = split /,\s*/, $s;
 	for ( my $i = 0; $i < scalar(@eklads); $i+=2) {
-		push @{ $$h{translator} }, $eklads[$i] . ", " . $eklads[$i+1]
+		push @{ $$h{encode_utf8('překladatel')} }, $eklads[$i] . ", " . $eklads[$i+1]
+#		push @{ $$h{translator} }, $eklads[$i] . ", " . $eklads[$i+1]
 	}
 }
 
@@ -241,6 +242,40 @@ sub perl2xml {
 	$out->startTag("tellico",syntaxVersion => 9, xmlns => "http://periapsis.org/tellico/");
 		$out->startTag("collection", title => "My Books", type => 2);
 			$out->startTag("fields");
+				$out->emptyTag("field", flags=>"4", title=>encode_utf8("Název"), 			category=>encode_utf8("Obecné"), 		format=>"4", 	type=>"1", 	name=>"title");
+   				$out->emptyTag("field", flags=>"7", title=>encode_utf8("Autor"),			category=>encode_utf8("Obecné"), 		format=>"2", 	type=>"1", 	name=>"author");
+				$out->emptyTag("field", flags=>"3", title=>encode_utf8("Název originálu"),	category=>encode_utf8("Obecné"), 		format=>"4", 	type=>"1", 	name=>encode_utf8("název-originálu"));
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Podtitul"),			category=>encode_utf8("Obecné"), 		format=>"1", 	type=>"1", 	name=>"subtitle");
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Kupní cena"),		category=>encode_utf8("Publikování"), 	format=>"4", 	type=>"1", 	name=>"pur_price");
+				$out->emptyTag("field", flags=>"7", title=>encode_utf8("Vydavatel"), 		category=>encode_utf8("Obecné"), 		format=>"4", 	type=>"1", 	name=>"publisher");
+   				$out->emptyTag("field", flags=>"6", title=>encode_utf8("Edice"), 			category=>encode_utf8("Obecné"), 		format=>"4", 	type=>"1", 	name=>"edice");
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Žánr"), 			category=>encode_utf8("Obecné"), 		allowed=>encode_utf8("Román;Novela;Povídky;Epos;Legenda;Básně;Divadelní hra;Pohádka;Paměti;Kronika;Deníky;Dopisy;Rozhovor;Literatura faktu;Esej;Technická literatura;Časopis;Dějiny"), 			format=>"4", type=>"3", name=>encode_utf8("žánr"));
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Číslo svazku"), 	category=>encode_utf8("Obecné"), 		format=>"4", 	type=>"1", 	name=>encode_utf8("číslo-svazku"));
+   				$out->emptyTag("field", flags=>"1", title=>encode_utf8("Vydání"), 			category=>encode_utf8("Publikování"), 	format=>"0", 	type=>"6", 	name=>"edition");
+   				$out->emptyTag("field", flags=>"3", title=>encode_utf8("Rok copyrightu"), 	category=>encode_utf8("Publikování"), 	format=>"4", 	type=>"6", 	name=>"cr_year");
+   				$out->emptyTag("field", flags=>"2", title=>encode_utf8("Rok vydání"),		category=>encode_utf8("Publikování"), 	format=>"4", 	type=>"6", 	name=>"pub_year");
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("ISBN č. "), 		category=>encode_utf8("Publikování"), 	format=>"4", 	type=>"1", 	name=>"isbn", description=>encode_utf8("Mezinárodní standardní knižní číslo"));
+   				$out->emptyTag("field", flags=>"2", title=>encode_utf8("Vazba"), 			category=>encode_utf8("Publikování"), 	allowed=>encode_utf8("E-Book;Paperback;Žurnál;Časopis;Velký paperback;Vázaná;Brožovaná;Pevná vazba;vázaná;brožovaná"), 																			format=>"4", type=>"3", name=>"binding");
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Stran"), 			category=>encode_utf8("Publikování"), 	format=>"4", 	type=>"6", 	name=>"pages");
+   				$out->emptyTag("field", flags=>"7", title=>encode_utf8("Jazyk originálu"),	category=>encode_utf8("Publikování"), 	format=>"4",	type=>"1", 	name=>"language");
+   				$out->emptyTag("field", flags=>"7", title=>encode_utf8("Překladatel"), 		category=>encode_utf8("Publikování"), 	format=>"2",	type=>"1", 	name=>encode_utf8("překladatel"));
+   				$out->emptyTag("field", flags=>"2", title=>encode_utf8("Datum nabytí"), 	category=>encode_utf8("Osobní"), 		format=>"3",	type=>"12", name=>encode_utf8("datum-nabytí"));
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Datum pozbytí"), 	category=>encode_utf8("Osobní"), 		format=>"3", 	type=>"12", name=>encode_utf8("datum-pozbytí"));
+   				$out->emptyTag("field", flags=>"6", title=>encode_utf8("Knihkupectví"), 	category=>encode_utf8("Osobní"), 		format=>"4", 	type=>"1",	name=>encode_utf8("knihkupectví"));
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Stav"), 			category=>encode_utf8("Osobní"), 		allowed=>encode_utf8("Sleva;Použitá;Nová;Antikvariát;Nový"), format=>"4", type=>"3", name=>"condition");
+   				$out->emptyTag("field", flags=>"6", title=>encode_utf8("Stav 2"), 			category=>encode_utf8("Osobní"),			format=>"4", 	type=>"1", 	name=>"stav-2");
+   				$out->emptyTag("field", flags=>"3", title=>encode_utf8("Přečtená"), 		category=>encode_utf8("Osobní"), 		format=>"4", 	type=>"1", 	name=>encode_utf8("přečtená"));
+   				$out->startTag("field", flags=>"2", title=>encode_utf8("Hodnocení"), 		category=>encode_utf8("Osobní"), 		format=>"4", 	type=>"14",	name=>"rating");
+   					$out->dataElement("prop",10, name=>"maximum");
+   					$out->dataElement("prop",1, name=>"minimum");
+				$out->endTag("field");
+   				$out->emptyTag("field", flags=>"4", title=>encode_utf8("Umístění"), 		category=>encode_utf8("Osobní"), 		format=>"4", 	type=>"1", 	name=>encode_utf8("umístění"));
+   				$out->startTag("field", flags=>"1", title=>encode_utf8("Hlavní postavy"), 	category=>encode_utf8("Hlavní postavy"), format=>"4", 	type=>"8", 	name=>encode_utf8("hlavní-postavy"));
+   					$out->dataElement("prop",1, name=>"columns");
+   				$out->endTag("field");
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Téma"), 			category=>encode_utf8("Téma"), 			format=>"4", 	type=>"2", 	name=>"comments");
+   				$out->emptyTag("field", flags=>"0", title=>encode_utf8("Přední obálka"), 	category=>encode_utf8("Přední obálka"), 	format=>"4", 	type=>"10",	name=>"cover");
+   				$out->emptyTag("field", flags=>"2", title=>encode_utf8("Půjčená"), 			category=>encode_utf8("Osobní"), 		format=>"4", 	type=>"4", 	name=>"loaned");
 				$out->emptyTag("field", name => "_default");
 			$out->endTag("fields");
 	for (my $i = 0; $i < scalar(@BOOKS); $i++) {			
