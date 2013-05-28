@@ -8,20 +8,16 @@ use Data::Dumper;
 #use Smart::Comments;
 use HTML::TreeBuilder;
 use Encode;
-use Cz::Cstocs;
-sub win1250_utf8;
-*win1250_utf8 = new Cz::Cstocs '1250', 'utf8';
-sub utf8_ascii;
-*utf8_ascii = new Cz::Cstocs 'utf8', 'ascii';
 use utf8;
 use XML::Writer;
 use IO::File;
+use File::Basename;
 
 use Digest::MD5;
 use MIME::Base64 qw(encode_base64);
 
 
-my $ADDRESS = 'http://www.kosmas.cz';
+my $ADDRESS = 'http://www.databazeknih.cz';
 my $TMPADDR = '/tmp/czech_book_search_' . $$;
 my @BOOKS;
 my @IMAGES;
@@ -50,40 +46,35 @@ EOF
     exit 0;
 }
 
-my %optw = (
-    a => 'Author',
-	i => 'ISBN_EAN',
-    l => 'Illustrator',
-    p => 'Publisher',
-    r => 'Translator',
-    t => 'Title',     
-);
 
-my $post_data = join "&", ('sortBy=datum', 
-    map  { 
-	    $option{$_} =~ s/(\s+)/+/g;
-	    "Filters." . $optw{$_} . "=" . lc( utf8_ascii($option{$_}) );
-	 } grep( $option{$_}, keys %option ) );
-### $post_data
+my $title = $option{t};
+$title =~ s/(\s+)/+/g;
 
-$html = `wget -q -O '-'  --post-data='$post_data' $ADDRESS/hledani`;
+my $getdata = sprintf'?q=%s&hledat=Vyhledat&stranka=search',$title;
+### $getdata
 
-## $html;
+$html = `wget -q -O '-'  $ADDRESS/search$getdata`;
+
+## $html
 
  
 my @refs = get_ref($html);
 
+### @refs
 
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
-		$html = `wget -q -O '-' $ADDRESS.$ref`;
+		$html = `wget -q -O '-' $ADDRESS/$ref`;
 #		$html = get($ADDRESS.$ref);
 		push @BOOKS, html2perl($html);
 }	
 
 
 ### @BOOKS
+### @IMAGES
+
+warn "Could'nt find any book" unless @BOOKS;
 
 &perl2xml if scalar @BOOKS > 0;
 
@@ -96,11 +87,12 @@ foreach my $ref (@refs) {
 sub get_ref {
 	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	## $Tree
-	my @a =  $Tree->look_down( _tag => 'a', class => 'titul-title');
+	return () unless $Tree->look_down( _tag => 'ul', class => 'search_book');
+	my @a =  $Tree->look_down( _tag => 'ul', class => 'search_book')->look_down( _tag => 'li');
 	my @refs ;
 
 	foreach my $ref (@a) {
-		push @refs, $ref->attr('href');
+		push @refs, $ref->look_down( _tag => 'a')->attr('href');
 	}
 
 	return @refs;
@@ -109,12 +101,13 @@ sub get_ref {
 
 sub html2perl {
 	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
+  my $content = $Tree->look_down( _tag => 'div', id => 'content');
 #my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	my %h;	
-	get_data(\%h,$Tree);
-	get_titul(\%h,$Tree);
+	get_titul(\%h,$content);
+	get_data(\%h,$content);
 
-	my $img = $Tree->look_down(_tag => 'img', class=> 'detail-cover-image');
+	my $img = $content->look_down(_tag => 'img', class=> 'kniha_img');
 	push @IMAGES, get_image(\%h,$img->attr('src')) if $img;
 	return \%h; 
 #	print Dumper(\%H);
@@ -123,43 +116,43 @@ sub html2perl {
 sub get_data {
 	my $h = shift;
 	my $tree = shift;
-	my $div = $tree->look_down(_tag => 'div', class => 'titul-info-left');
-	my @lis = $div->look_down( _tag => 'li');
-	foreach ( @lis ) {
-		if ( $_->as_trimmed_text =~ /(nakladatel|isbn|orig|rok|eklad|popis)/i ) {
-			my $fce = 'get_' . lc($1);
-			eval {
-				no strict;
-				### $fce
-				&{$fce}($h,$_->as_trimmed_text) if defined &$fce;		
-	
-			};
-			die $@ if ($@);
-		}
-	}
+  # rok vydani, pocet stran
+  get_year_pages($h,$tree->look_down(_tag => 'p', class => 'binfo odtopm')->as_trimmed_text) if $tree->look_down(_tag => 'p', class => 'binfo odtopm');
+   
+  my $pmore  = $tree->look_down( _tag => 'p', id => 'more_binfo');
+  return unless $pmore;
+  get_publisher($h,$pmore);
+  get_isbn($h,$pmore);
+  get_translator($h,$pmore);
+  get_from_html($h,$pmore);
 }
 
 sub get_titul {
 	my $h = shift;
 	my $tree = shift;
-	my $head = $tree->look_down( _tag => 'div', class => 'detail-heading');
-	return unless $head;
-	$h->{title} = $head->look_down( _tag => 'h1')->as_trimmed_text;
-	my @authors = $head->look_down( _tag => 'h2', class => 'authors' );
+	my $title = $tree->look_down( _tag => 'h1', itemprop => 'name')->as_trimmed_text;
+  ($h->{title}, my $orig ) = split /\s*\/\s*/, $title, 2;
+	$h->{encode_utf8('název-originálu')} = $orig if $orig;
+	my @authors = $tree->look_down( _tag => 'h2', class => 'jmenaautoru' )->look_down( _tag => 'a');
 	foreach my $auth ( @authors ) {
 		push @{ $h->{author} }, $auth->as_trimmed_text; 
 	}
+  
+  $h->{comments} = $tree->look_down(_tag => 'p', id => 'biall', itemprop => 'description')->as_trimmed_text if $tree->look_down(_tag => 'p', id => 'biall', itemprop => 'description');
 }
 
 my $I = 0;
 sub get_image {
 	my $h = shift;
 	my $src = shift;
+	### src: basename($src)
 	my %img;
-	my $imgdata = `wget -q -O '-' $src`;
-	my $imgname = generate_imgname($imgdata) . ".gif";
+	my $imgdata = `wget -q -O '-' $ADDRESS/$src`;
+	
+	(undef,my $imgtype) = split /\./, basename($src);
+	my $imgname = generate_imgname($imgdata) . "." . $imgtype;
 	$$h{cover} = $imgname; 	
-	$img{format} = 'GIF';
+	$img{format} = lc($imgtype);
 	$img{id} = $imgname;
 	$img{width} = 100;
 	$img{height} = 150;
@@ -169,63 +162,44 @@ sub get_image {
 	return { %img };
 }
 
-sub get_nakladatel {
-	my ($h,$r) = @_;
-	my ($p,$s) = $r =~ /^Nakladatel:\s*(.*?)(?:, edice: (.*);)?$/;
-	@{$$h{publisher}} = split ',', $p;
-	$$h{edice} = $s if $s;
+sub get_publisher {
+	my ($h,$pmore) = @_;
+	my @publishers = $pmore->look_down( _tag => 'a', 'href' => qr/nakladatelstvi/);
+	@{$$h{publisher}} = map {$_->as_trimmed_text} @publishers if @publishers;
+	$h->{edice} = $pmore->look_down( _tag => 'a', href => qr/edice/)->as_trimmed_text if $pmore->look_down( _tag => 'a', href => qr/edice/);
 }
 
 sub get_isbn {
+	my ($h,$pmore) = @_;
+	$$h{isbn} = $pmore->look_down( _tag => 'span', itemprop => 'identifier')->as_trimmed_text if $pmore->look_down( _tag => 'span', itemprop => 'identifier');
+}
+
+
+sub get_translator {
+	my ($h,$pmore) = @_;
+	my @itrans = $pmore->look_down( _tag => 'a', href => qr/prekladatele/);
+#	@{ $$h{translator} } = map {$_->as_trimmed_text} @itrans if @itrans;
+	@{ $$h{encode_utf8('překladatel')} } = map {$_->as_trimmed_text} @itrans if @itrans; 
+}
+
+sub get_year_pages {
 	my ($h,$r) = @_;
-	$r =~ /^ISBN:\s*((?:\d|-)+)/i;
-	$$h{isbn} = $1 if $1;
+	$r =~ /Rok vydání:\s*(\d+)/;
+	$$h{pub_year} = $1 if $1;
+	$r =~ /stran:\s*(\d+)/;
+	$$h{pages} = $1 if $1;
 }
 
-sub get_orig {
-	my ($h,$r) = @_;
-	my ($p) = $r =~ /Originál:\s*(.*?)\s*$/;
-	$$h{encode_utf8('název-originálu')} = $p if $p;
+sub get_from_html {
+	my ($h, $pmore) = @_;
+	my $html = $pmore->as_HTML;
+	# vazba
+	$h->{binding} = $1 if $html =~ /Vazba knihy:\s*<strong>(.*?)<\/strong>/;
+	# rok vydani originalu
+	$h->{cr_year} = $1 if $html =~ /Rok (?:1\. )?vyd.*?<strong>(.*?)<\/strong>/;
+	## $html
 }
 
-sub get_eklad {
-	my ($h,$r) = @_;
-	### $r
-	my ($s) = $r =~ /eklad:\s*(.*?)\s*$/;
-	my @eklads = split /,\s*/, $s;
-	for ( my $i = 0; $i < scalar(@eklads); $i+=2) {
-		push @{ $$h{encode_utf8('překladatel')} }, $eklads[$i] . ", " . $eklads[$i+1]
-#		push @{ $$h{translator} }, $eklads[$i] . ", " . $eklads[$i+1]
-	}
-}
-
-sub get_popis {
-	my ($h,$r) = @_;
-	### $r
-	$r =~ /Popis:\s*(.*?)$/;
-	my @a = split ', ', $1;
-    ### @a
-	if (scalar(@a) == 5 ) {
-		shift @a;
-	}
-	$a[1] =~ /(\d+)\s*stran/;
-	$$h{pages} = $1 if $1; 
-	$$h{language} = $a[3];
-	$$h{binding} = $a[0];
-}
-
-sub get_rok {
-	my ($h,$r) = @_;
-	my ($p,$s) = $r =~ /^Rok vydání:\s*(\d+)(?:[^\(]*\((\d+).*?vydání)?/;
-	$$h{pub_year} = $p if $p;
-	$$h{edition} = $s if $s;
-}
-
-
-sub get_name {
-	my @a = split ' ', $_[0];
-	return  pop(@a) . ", " . join " ", @a;
-}
 
 sub generate_imgname {
 	my $ctx = Digest::MD5->new();
@@ -279,6 +253,7 @@ sub perl2xml {
    				$out->emptyTag("field", flags=>"2", title=>encode_utf8("Půjčená"), 			category=>encode_utf8("Osobní"), 		format=>"4", 	type=>"4", 	name=>"loaned");
 				$out->emptyTag("field", name => "_default");
 			$out->endTag("fields");
+
 	for (my $i = 0; $i < scalar(@BOOKS); $i++) {			
 			$out->startTag("entry",id=>$i);
 		foreach my $key ( sort keys %{ $BOOKS[$i] } ) {
