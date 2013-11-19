@@ -22,6 +22,7 @@ my $TMPADDR = '/tmp/czech_book_search_' . $$;
 my @BOOKS;
 my @IMAGES;
 my $html;
+my $pmore;
 
 mkdir $TMPADDR;
 #####################################################
@@ -66,8 +67,12 @@ exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
 		$html = `wget -q -O '-' $ADDRESS/$ref`;
+        ### $ref
+        if ( $ref =~ /(\d+)$/ ) {
+            $pmore = `wget -q -O '-' $ADDRESS/helpful/ajax/more_binfo.php?bid=$1`;
+        }
 #		$html = get($ADDRESS.$ref);
-		push @BOOKS, html2perl($html);
+		push @BOOKS, html2perl($html, $pmore);
 }	
 
 
@@ -100,31 +105,30 @@ sub get_ref {
 
 
 sub html2perl {
-	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
+    my $html = decode_utf8($_[0]);
+    my $pmore = decode_utf8($_[1]);
+	my $Tree = HTML::TreeBuilder->new_from_content($html);
   my $content = $Tree->look_down( _tag => 'div', id => 'content');
 #my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	my %h;	
 	get_titul(\%h,$content);
-	get_data(\%h,$content);
+    get_year_pages(\%h,$content->look_down(_tag => 'p', class => 'binfo odtop')->as_trimmed_text) if $content->look_down(_tag => 'p', class => 'binfo odtop');
+    get_data(\%h, HTML::TreeBuilder->new_from_content($pmore));
 
 	my $img = $content->look_down(_tag => 'img', class=> 'kniha_img');
 	push @IMAGES, get_image(\%h,$img->attr('src')) if $img;
 	return \%h; 
-#	print Dumper(\%H);
+#	print Dumper(\%h);
 }
 
 sub get_data {
 	my $h = shift;
-	my $tree = shift;
-  # rok vydani, pocet stran
-  get_year_pages($h,$tree->look_down(_tag => 'p', class => 'binfo odtopm')->as_trimmed_text) if $tree->look_down(_tag => 'p', class => 'binfo odtopm');
-   
-  my $pmore  = $tree->look_down( _tag => 'p', id => 'more_binfo');
-  return unless $pmore;
-  get_publisher($h,$pmore);
-  get_isbn($h,$pmore);
-  get_translator($h,$pmore);
-  get_from_html($h,$pmore);
+	my $pmore = shift;
+    return unless $pmore;
+    get_publisher($h,$pmore);
+    get_isbn($h,$pmore);
+    get_translator($h,$pmore);
+    get_from_html($h,$pmore);
 }
 
 sub get_titul {
@@ -165,6 +169,7 @@ sub get_image {
 sub get_publisher {
 	my ($h,$pmore) = @_;
 	my @publishers = $pmore->look_down( _tag => 'a', 'href' => qr/nakladatelstvi/);
+    ### @publishers
 	@{$$h{publisher}} = map {$_->as_trimmed_text} @publishers if @publishers;
 	$h->{edice} = $pmore->look_down( _tag => 'a', href => qr/edice/)->as_trimmed_text if $pmore->look_down( _tag => 'a', href => qr/edice/);
 }
