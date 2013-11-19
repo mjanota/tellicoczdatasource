@@ -113,6 +113,7 @@ sub html2perl {
 	my %h;	
 	get_data(\%h,$Tree);
 	get_titul(\%h,$Tree);
+    get_comments(\%h,$Tree);
 
 	my $img = $Tree->look_down(_tag => 'img', class=> 'detail-cover-image');
 	push @IMAGES, get_image(\%h,$img->attr('src')) if $img;
@@ -203,12 +204,13 @@ sub get_popis {
 	## $r
 	$r =~ /Popis:\s*(.*?)$/;
 	my @a = split ', ', $1;
-	if (scalar(@a) == 4 ) {
+    ### @a
+	if (scalar(@a) == 5 ) {
 		shift @a;
 	}
 	$a[1] =~ /(\d+)\s*stran/;
 	$$h{pages} = $1 if $1; 
-	$$h{language} = $a[2];
+	$$h{language} = $a[3];
 	$$h{binding} = $a[0];
 }
 
@@ -223,6 +225,12 @@ sub get_rok {
 sub get_name {
 	my @a = split ' ', $_[0];
 	return  pop(@a) . ", " . join " ", @a;
+} 
+
+sub get_comments {
+    my $h = shift;
+    my $tree = shift;
+    $h->{comments} = $tree->look_down( _tag => 'div', class => 'detail-description' )->as_trimmed_text;
 }
 
 sub generate_imgname {

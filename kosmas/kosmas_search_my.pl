@@ -113,6 +113,7 @@ sub html2perl {
 	my %h;	
 	get_data(\%h,$Tree);
 	get_titul(\%h,$Tree);
+    get_comments(\%h,$Tree);
 
 	my $img = $Tree->look_down(_tag => 'img', class=> 'detail-cover-image');
 	push @IMAGES, get_image(\%h,$img->attr('src')) if $img;
@@ -225,6 +226,12 @@ sub get_rok {
 sub get_name {
 	my @a = split ' ', $_[0];
 	return  pop(@a) . ", " . join " ", @a;
+} 
+
+sub get_comments {
+    my $h = shift;
+    my $tree = shift;
+    $h->{comments} = $tree->look_down( _tag => 'div', class => 'detail-description' )->as_trimmed_text;
 }
 
 sub generate_imgname {
