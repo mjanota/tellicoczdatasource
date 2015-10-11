@@ -1,0 +1,1 @@
+Data source for home video and book collection. Scripts download information and cover from servers csfd.cz and kosmas.cz and saves this in Tellico XML format.
