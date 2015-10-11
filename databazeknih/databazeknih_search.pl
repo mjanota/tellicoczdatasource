@@ -51,7 +51,7 @@ EOF
 my $title = $option{t};
 $title =~ s/(\s+)/+/g;
 
-my $getdata = sprintf'?q=%s&hledat=Vyhledat&stranka=search',$title;
+my $getdata = sprintf'?q=%s&hledat=&stranka=search',$title;
 ### $getdata
 
 $html = `wget -q -O '-'  $ADDRESS/search$getdata`;
@@ -92,12 +92,12 @@ warn "Could'nt find any book" unless @BOOKS;
 sub get_ref {
 	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	## $Tree
-	return () unless $Tree->look_down( _tag => 'ul', class => 'search_book');
-	my @a =  $Tree->look_down( _tag => 'ul', class => 'search_book')->look_down( _tag => 'li');
+	my @a =  $Tree->look_down( _tag => 'a', class => 'search_to_stats', type=>'book');
 	my @refs ;
-
+    my %r;
 	foreach my $ref (@a) {
-		push @refs, $ref->look_down( _tag => 'a')->attr('href');
+		push @refs, $ref->attr('href') unless exists $r{$ref->attr('href')} ;
+        $r{$ref->attr('href')} = 1;
 	}
 
 	return @refs;
@@ -112,7 +112,9 @@ sub html2perl {
 #my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	my %h;	
 	get_titul(\%h,$content);
-    get_year_pages(\%h,$content->look_down(_tag => 'p', class => 'binfo odtop')->as_trimmed_text) if $content->look_down(_tag => 'p', class => 'binfo odtop');
+    get_years(\%h,$content->look_down(_tag => 'td', class => 'binfo_hard',
+            sub {$_[0]->as_trimmed_text =~ /Rok vyd/} )
+        ->parent()) if $content->look_down(_tag => 'td', class => 'binfo_hard', sub {$_[0]->as_trimmed_text =~ /Rok vyd/} );
     get_data(\%h, HTML::TreeBuilder->new_from_content($pmore));
 
 	my $img = $content->look_down(_tag => 'img', class=> 'kniha_img');
@@ -149,9 +151,12 @@ my $I = 0;
 sub get_image {
 	my $h = shift;
 	my $src = shift;
+    ### $src 
 	### src: basename($src)
 	my %img;
-	my $imgdata = `wget -q -O '-' $ADDRESS/$src`;
+#	my $imgdata = `wget -q -O '-' $ADDRESS/$src`;
+#   oprava 3.2.2014
+	my $imgdata = `wget -q -O '-' $src`;
 	
 	(undef,my $imgtype) = split /\./, basename($src);
 	my $imgname = generate_imgname($imgdata) . "." . $imgtype;
@@ -183,24 +188,27 @@ sub get_isbn {
 sub get_translator {
 	my ($h,$pmore) = @_;
 	my @itrans = $pmore->look_down( _tag => 'a', href => qr/prekladatele/);
-	@{ $$h{translator} } = map {$_->as_trimmed_text} @itrans if @itrans;
+#	@{ $$h{translator} } = map {$_->as_trimmed_text} @itrans if @itrans;
+	@{ $$h{encode_utf8('překladatel')} } = map {$_->as_trimmed_text} @itrans if @itrans; 
 }
 
-sub get_year_pages {
+sub get_years {
 	my ($h,$r) = @_;
-	$r =~ /Rok vydání:\s*(\d+)/;
-	$$h{pub_year} = $1 if $1;
-	$r =~ /stran:\s*(\d+)/;
-	$$h{pages} = $1 if $1;
+    $r = $r->as_HTML;
+    ### $r
+	$h->{pub_year} = $1 if $r =~ /Rok vyd.*?<\/td><td><strong>\s*(\d+)/;
+
+	$h->{cr_year} = $1 if $r =~ /rok (?:1\. )?vyd.*?<strong>(.*?)<\/strong>/;
 }
 
 sub get_from_html {
 	my ($h, $pmore) = @_;
 	my $html = $pmore->as_HTML;
 	# vazba
-	$h->{binding} = $1 if $html =~ /Vazba knihy:\s*<strong>(.*?)<\/strong>/;
+	$h->{binding} = $1 if $html =~ /Vazba knihy:\s*<\/td><td><strong>(.*?)<\/strong>/;
+    $h->{pages} = $1 if $html =~ /stran:\s*<\/td><td><strong>(.*?)<\/strong>/;
 	# rok vydani originalu
-	$h->{cr_year} = $1 if $html =~ /Rok (?:1\. )?vyd.*?<strong>(.*?)<\/strong>/;
+#	$h->{cr_year} = $1 if $html =~ /Rok (?:1\. )?vyd.*?<strong>(.*?)<\/strong>/;
 	## $html
 }
 
