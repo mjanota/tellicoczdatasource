@@ -72,7 +72,7 @@ foreach my $ref (@refs) {
             $pmore = `wget -q -O '-' $ADDRESS/helpful/ajax/more_binfo.php?bid=$1`;
         }
 #		$html = get($ADDRESS.$ref);
-		push @BOOKS, html2perl($html, $pmore);
+		push @BOOKS, html2perl($html, $pmore, "$ADDRESS/$ref");
 }	
 
 
@@ -110,7 +110,8 @@ sub html2perl {
 	my $Tree = HTML::TreeBuilder->new_from_content($html);
   my $content = $Tree->look_down( _tag => 'div', id => 'content');
 #my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
-	my %h;	
+	my %h;
+	$h{link} = $_[2];
 	get_titul(\%h,$content);
     get_years(\%h,$content->look_down(_tag => 'td', class => 'binfo_hard',
             sub {$_[0]->as_trimmed_text =~ /Rok vyd/} )
@@ -230,6 +231,7 @@ sub perl2xml {
 		$out->startTag("collection", title => "My Books", type => 2);
 			$out->startTag("fields");
 				$out->emptyTag("field", name => "_default");
+				$out->emptyTag("field", title=>"Link", flags=>"0", category=>encode_utf8("Obecné"), format=>"4", description=>"Odkaz", type=>"7", name=>"link");
 			$out->endTag("fields");
 
 	for (my $i = 0; $i < scalar(@BOOKS); $i++) {			
