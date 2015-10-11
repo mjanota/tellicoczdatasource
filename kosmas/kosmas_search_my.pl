@@ -243,8 +243,7 @@ sub generate_imgname {
 
 
 sub perl2xml {
-	my $fh = new IO::File(*STDOUT);
-	my $out = new XML::Writer(OUTPUT => $fh);
+	my $out = new XML::Writer(OUTPUT => *STDOUT);
 	print '<?xml version="1.0" encoding="UTF-8"?>';
 	print '<!DOCTYPE tellico PUBLIC "-//Robby Stephenson/DTD Tellico V9.0//EN" "http://periapsis.org/tellico/dtd/v9/tellico.dtd">';
 	$out->startTag("tellico",syntaxVersion => 9, xmlns => "http://periapsis.org/tellico/");
