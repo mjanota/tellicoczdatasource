@@ -5,7 +5,7 @@ use strict;
 use LWP::Simple;
 use Getopt::Std;
 use Data::Dumper;
-#use Smart::Comments;
+# use Smart::Comments;
 use HTML::TreeBuilder;
 use Encode;
 use utf8;
@@ -113,15 +113,18 @@ sub html2perl {
 	my %h;
 	$h{link} = $_[2];
 	get_titul(\%h,$content);
+	get_origtitle(\%h,$content->look_down(_tag => 'td', class => 'binfo_hard',
+            sub {$_[0]->as_trimmed_text =~ /Origin/} )
+        ->parent()) if $content->look_down(_tag => 'td', class => 'binfo_hard', sub {$_[0]->as_trimmed_text =~ /Origin/} );
     get_years(\%h,$content->look_down(_tag => 'td', class => 'binfo_hard',
             sub {$_[0]->as_trimmed_text =~ /Rok vyd/} )
         ->parent()) if $content->look_down(_tag => 'td', class => 'binfo_hard', sub {$_[0]->as_trimmed_text =~ /Rok vyd/} );
     get_data(\%h, HTML::TreeBuilder->new_from_content($pmore));
-
+	# print Dumper(\%h);
+	# exit 1;
 	my $img = $content->look_down(_tag => 'img', class=> 'kniha_img');
 	push @IMAGES, get_image(\%h,$img->attr('src')) if $img;
 	return \%h; 
-#	print Dumper(\%h);
 }
 
 sub get_data {
@@ -199,7 +202,14 @@ sub get_years {
     ### $r
 	$h->{pub_year} = $1 if $r =~ /Rok vyd.*?<\/td><td><strong>\s*(\d+)/;
 
-	$h->{cr_year} = $1 if $r =~ /rok (?:1\. )?vyd.*?<strong>(.*?)<\/strong>/;
+	$h->{cr_year} = $1 if $r =~ /1\. vyd.*?<strong>(.*?)<\/strong>/;
+}
+
+sub get_origtitle {
+	my ($h,$r) = @_;
+    $r = $r->as_HTML;
+    ### $r
+	$h->{encode_utf8('název-originálu')} = $1 if $r =~ /Origin.*?<\/td><td><h4>(.*?)<\/h4>/;
 }
 
 sub get_from_html {
