@@ -77,7 +77,9 @@ my @refs = get_ref($html);
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
-		$html = `wget -q -O '-' $ADDRESS.$ref`;
+        ### $ref
+		$html = `wget -q -O '-' ${ADDRESS}$ref`;
+        ## html
 #		$html = get($ADDRESS.$ref);
 		push @BOOKS, html2perl($html);
 }	
