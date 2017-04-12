@@ -77,7 +77,9 @@ my @refs = get_ref($html);
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
-		$html = `wget -q -O '-' $ADDRESS.$ref`;
+        ### $ref
+		$html = `wget -q -O '-' ${ADDRESS}$ref`;
+        ## html
 #		$html = get($ADDRESS.$ref);
 		push @BOOKS, html2perl($html);
 }	
@@ -243,8 +245,7 @@ sub generate_imgname {
 
 
 sub perl2xml {
-	my $fh = new IO::File(*STDOUT);
-	my $out = new XML::Writer(OUTPUT => $fh);
+	my $out = new XML::Writer(OUTPUT => *STDOUT);
 	print '<?xml version="1.0" encoding="UTF-8"?>';
 	print '<!DOCTYPE tellico PUBLIC "-//Robby Stephenson/DTD Tellico V9.0//EN" "http://periapsis.org/tellico/dtd/v9/tellico.dtd">';
 	$out->startTag("tellico",syntaxVersion => 9, xmlns => "http://periapsis.org/tellico/");

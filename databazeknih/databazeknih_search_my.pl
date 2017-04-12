@@ -63,15 +63,17 @@ my @refs = get_ref($html);
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
-    $html = `wget -q -O '-' $ADDRESS/$ref`;
-    ### $ref
-    if ( $ref =~ /(\d+)$/ ) {
-        $pmore = `wget -q -O '-' $ADDRESS/helpful/ajax/more_binfo.php?bid=$1`;
+   
+		$html = `wget -q -O '-' $ADDRESS/$ref`;
+        ### $ref
+        if ( $ref =~ /(\d+)$/ ) {
+            $pmore = `wget -q -O '-' $ADDRESS/helpful/ajax/more_binfo.php?bid=$1`;
         ### $pmore
-    }
-    #		$html = get($ADDRESS.$ref);
-    push @BOOKS, html2perl( $html, $pmore, "$ADDRESS/$ref" );
-}
+        }
+#		$html = get($ADDRESS.$ref);
+		push @BOOKS, html2perl($html, $pmore, "$ADDRESS/$ref");
+}	
+
 
 ### @BOOKS
 ### @IMAGES
@@ -106,6 +108,7 @@ sub get_ref {
         }
         $r{ $ref->attr('href') } = 1;
     }
+
 
     return @refs;
 }
