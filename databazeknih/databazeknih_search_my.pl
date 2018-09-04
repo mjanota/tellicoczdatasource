@@ -49,13 +49,13 @@ EOF
 my $title = $option{t};
 $title =~ s/(\s+)/+/g;
 
-my $getdata = sprintf '?q=%s&hledat=&stranka=search', $title;
+my $getdata = sprintf '?q=%s&hledat=', $title;
 ### $getdata
 
 $html = `wget -q -O '-'  $ADDRESS/search$getdata`;
 
 ## $html
-
+ 
 my @refs = get_ref($html);
 
 ### @refs
@@ -63,7 +63,6 @@ my @refs = get_ref($html);
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
-   
 		$html = `wget -q -O '-' $ADDRESS/$ref`;
         ### $ref
         if ( $ref =~ /(\d+)$/ ) {
@@ -82,17 +81,19 @@ warn "Could'nt find any book" unless @BOOKS;
 
 &perl2xml if scalar @BOOKS > 0;
 
+
 #####################################################################
 #					Functions										#
 #####################################################################
 
+
 sub get_ref {
-    my $Tree = HTML::TreeBuilder->new_from_content( decode_utf8( $_[0] ) );
-    ## $Tree
-    my @a = $Tree->look_down( _tag => 'a', class => 'search_to_stats', type => 'book' );
-    my @refs;
+	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
+	## $Tree
+	my @a =  $Tree->look_down( _tag => 'a', class => 'strong', type=>'book');
+	my @refs ;
     my %r;
-    foreach my $ref (@a) {
+	foreach my $ref (@a) {
         continue if $r{ $ref->attr('href') };
 
         push @refs, $ref->attr('href');

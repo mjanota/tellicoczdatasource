@@ -47,17 +47,15 @@ EOF
     exit 0;
 }
 
-
 my $title = $option{t};
 $title =~ s/(\s+)/+/g;
 
-my $getdata = sprintf'?q=%s&hledat=&stranka=search',$title;
+my $getdata = sprintf '?q=%s&hledat=', $title;
 ### $getdata
 
 $html = `wget -q -O '-'  $ADDRESS/search$getdata`;
 
 ## $html
-
  
 my @refs = get_ref($html);
 
@@ -93,7 +91,7 @@ warn "Could'nt find any book" unless @BOOKS;
 sub get_ref {
 	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	## $Tree
-	my @a =  $Tree->look_down( _tag => 'a', class => 'search_to_stats', type=>'book');
+	my @a =  $Tree->look_down( _tag => 'a', class => 'strong', type=>'book');
 	my @refs ;
     my %r;
 	foreach my $ref (@a) {
