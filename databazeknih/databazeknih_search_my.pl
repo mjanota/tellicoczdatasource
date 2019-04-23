@@ -59,7 +59,6 @@ $html = `wget -q -O '-'  $ADDRESS/search$getdata`;
 my @refs = get_ref($html);
 
 ### @refs
-
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
@@ -90,7 +89,7 @@ warn "Could'nt find any book" unless @BOOKS;
 sub get_ref {
 	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	## $Tree
-	my @a =  $Tree->look_down( _tag => 'a', class => 'strong', type=>'book');
+	my @a =  $Tree->look_down( _tag => 'a', class => 'new', type=>'book');
 	my @refs ;
     my %r;
 	foreach my $ref (@a) {
@@ -101,7 +100,8 @@ sub get_ref {
             ### $1
             my $editionhtml = `wget -q -O '-' $ADDRESS/book_detail_types.php?cislo=$1`;
             my $ETree       = HTML::TreeBuilder->new_from_content( decode_utf8($editionhtml) );
-            my @ea          = $ETree->look_down( _tag => 'a', class => 'new strong', href => qr/dalsi-vydani/ );
+	    ## $ETree
+            my @ea          = $ETree->look_down( _tag => 'a', class => 'bigger', href => qr/dalsi-vydani/ );
             foreach my $eref (@ea) {
                 push @refs, $eref->attr('href');
             }
@@ -126,8 +126,8 @@ sub html2perl {
     get_publisher( \%h, $content );
     get_pub_year( \%h, $content );
     get_origtitle( \%h, $content->look_down( _tag => 'td', class => 'binfo_hard',
-            sub { $_[0]->as_trimmed_text =~ /Origin/ } )
-          ->parent() ) if $content->look_down( _tag => 'td', class => 'binfo_hard', sub { $_[0]->as_trimmed_text =~ /Origin/ } );
+            sub { $_[0]->as_trimmed_text =~ /Orig/ } )
+          ->parent() ) if $content->look_down( _tag => 'td', class => 'binfo_hard', sub { $_[0]->as_trimmed_text =~ /Orig/ } );
     get_years( \%h, $content->look_down( _tag => 'td', class => 'binfo_hard',
             sub { $_[0]->as_trimmed_text =~ /Rok vyd/ } )
           ->parent() ) if $content->look_down( _tag => 'td', class => 'binfo_hard', sub { $_[0]->as_trimmed_text =~ /Rok vyd/ } );
@@ -161,7 +161,7 @@ sub get_titul {
         push @{ $h->{author} }, $auth->as_trimmed_text;
     }
 
-    $h->{comments} = $tree->look_down( _tag => 'p', id => 'biall', itemprop => 'description' )->as_trimmed_text if $tree->look_down( _tag => 'p', id => 'biall', itemprop => 'description' );
+    $h->{comments} = $tree->look_down( _tag => 'p', id => 'bdetdesc', itemprop => 'description' )->as_trimmed_text if $tree->look_down( _tag => 'p', id => 'bdetdesc', itemprop => 'description' );
 }
 
 my $I = 0;
@@ -236,7 +236,7 @@ sub get_origtitle {
     my ( $h, $r ) = @_;
     $r = $r->as_HTML;
     ### $r
-    $h->{ encode_utf8('název-originálu') } = $1 if $r =~ /Origin.*?<\/td><td><h4>(.*?)<\/h4>/;
+    $h->{ encode_utf8('název-originálu') } = $1 if $r =~ /Orig.*?<\/td><td><h4>(.*?)<\/h4>/;
 }
 
 sub get_from_html {

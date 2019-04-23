@@ -98,7 +98,7 @@ foreach my $ref (@refs) {
 sub get_ref {
 	my $Tree = HTML::TreeBuilder->new_from_content(decode_utf8($_[0]));
 	## $Tree
-	my @a =  $Tree->look_down( _tag => 'a', class => 'titul-title');
+	my @a =  $Tree->look_down( _tag => 'a', class => 'book');
 	my @refs ;
 
 	foreach my $ref (@a) {
