@@ -59,6 +59,7 @@ $html = `wget -q -O '-'  $ADDRESS/search$getdata`;
 my @refs = get_ref($html);
 
 ### @refs
+#exit 0;
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
@@ -96,14 +97,16 @@ sub get_ref {
         continue if $r{ $ref->attr('href') };
 
         push @refs, $ref->attr('href');
-        if ( $ref->attr('href') =~ /(\d+)$/ ) {
+        if ( $ref->attr('href') =~ /\/([^\/]*)$/ ) {
             ### $1
-            my $editionhtml = `wget -q -O '-' $ADDRESS/book_detail_types.php?cislo=$1`;
+            my $editionhtml = `wget -q -O '-' $ADDRESS/dalsi-vydani/$1`;
             my $ETree       = HTML::TreeBuilder->new_from_content( decode_utf8($editionhtml) );
 	    ## $ETree
             my @ea          = $ETree->look_down( _tag => 'a', class => 'bigger', href => qr/dalsi-vydani/ );
             foreach my $eref (@ea) {
-                push @refs, $eref->attr('href');
+		my $href = $eref->attr('href');
+		$href =~ s/dalsi-vydani/knihy/;
+                push @refs, $href;
             }
 
         }
@@ -136,7 +139,7 @@ sub html2perl {
     # exit 1;
     my $img = $content->look_down( _tag => 'img', class => 'kniha_img' );
     push @IMAGES, get_image( \%h, $img->attr('src') ) if $img;
-    return \%h;
+    return {%h};
 }
 
 sub get_data {
