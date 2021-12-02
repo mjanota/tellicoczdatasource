@@ -127,11 +127,12 @@ sub html2perl {
     get_origtitle(
         \%h,
         $content->look_down(
-            _tag  => 'td',
-            class => 'binfo_hard',
+            _tag  => 'div',
+            class => 'detail_description',
             sub { $_[0]->as_trimmed_text =~ /Orig/ }
         )->parent()
-    ) if $content->look_down(_tag => 'td', class => 'binfo_hard', sub { $_[0]->as_trimmed_text =~ /Orig/ });
+        )
+        if $content->look_down(_tag => 'div', class => 'detail_description', sub { $_[0]->as_trimmed_text =~ /Orig/ });
     # get_years(
     #     \%h,
     #     $content->look_down(
@@ -226,8 +227,8 @@ sub get_isbn {
 
 sub get_pages {
     my ($h, $pmore) = @_;
-    $$h{pages} = $pmore->look_down(_tag => 'td', itemprop => 'numberOfPages')->as_trimmed_text
-        if $pmore->look_down(_tag => 'td', itemprop => 'numberOfPages');
+    $$h{pages} = $pmore->look_down(_tag => 'span', itemprop => 'numberOfPages')->as_trimmed_text
+        if $pmore->look_down(_tag => 'span', itemprop => 'numberOfPages');
 }
 
 sub get_translator {
@@ -249,9 +250,10 @@ sub get_years {
 sub get_origtitle {
     my ($h, $r) = @_;
     $r = $r->as_HTML;
+    ### origtitle
     ### $r
     ($h->{ encode_utf8('název-originálu') }, $h->{cr_year}) = split /<span.*?<\/span>/, $1
-        if $r =~ /Orig.*?<\/td><td><h4>(.*?)<\/h4>/;
+        if $r =~ /Orig.*?<\/span><h4>(.*?)<\/h4>/;
 }
 
 sub get_from_html {
