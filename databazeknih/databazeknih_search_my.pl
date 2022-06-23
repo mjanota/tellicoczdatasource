@@ -165,7 +165,7 @@ sub get_titul {
     my $tree  = shift;
     my $title = $tree->look_down(_tag => 'h1', itemprop => 'name')->as_trimmed_text;
     ($h->{title}, my $orig) = split /\s*\/\s*/, $title, 2;
-    $h->{ encode_utf8('název-originálu') } = $orig if $orig;
+    $h->{ encode_utf8('nazev-originalu') } = $orig if $orig;
     my @authors = $tree->look_down(_tag => 'h2', class => 'jmenaautoru')->look_down(_tag => 'a');
     foreach my $auth (@authors) {
         push @{ $h->{author} }, $auth->as_trimmed_text;
@@ -235,7 +235,7 @@ sub get_translator {
     my ($h, $pmore) = @_;
     my @itrans = $pmore->look_down(_tag => 'a', href => qr/prekladatele/);
     #	@{ $$h{translator} } = map {$_->as_trimmed_text} @itrans if @itrans;
-    @{ $$h{ encode_utf8('překladatel') } } = map { $_->as_trimmed_text } @itrans if @itrans;
+    @{ $$h{ encode_utf8('prekladatel') } } = map { $_->as_trimmed_text } @itrans if @itrans;
 }
 
 sub get_years {
@@ -252,7 +252,7 @@ sub get_origtitle {
     $r = $r->as_HTML;
     ### origtitle
     ### $r
-    ($h->{ encode_utf8('název-originálu') }, $h->{cr_year}) = split /<span.*?<\/span>/, $1
+    ($h->{ encode_utf8('nazev-originalu') }, $h->{cr_year}) = split /<span.*?<\/span>/, $1
         if $r =~ /Orig.*?<\/span><h4>(.*?)<\/h4>/;
 }
 
@@ -275,7 +275,7 @@ sub generate_imgname {
 }
 
 sub perl2xml {
-    my $out = new XML::Writer(OUTPUT => *STDOUT);
+    my $out = new XML::Writer(OUTPUT => 'self');
     print '<?xml version="1.0" encoding="UTF-8"?>';
     print
         '<!DOCTYPE tellico PUBLIC "-//Robby Stephenson/DTD Tellico V9.0//EN" "http://periapsis.org/tellico/dtd/v9/tellico.dtd">';
@@ -307,7 +307,7 @@ sub perl2xml {
         category => encode_utf8("Obecné"),
         format   => "4",
         type     => "1",
-        name     => encode_utf8("název-originálu")
+        name     => encode_utf8("nazev-originalu")
     );
     $out->emptyTag(
         "field",
@@ -440,7 +440,7 @@ sub perl2xml {
         category => encode_utf8("Publikování"),
         format   => "2",
         type     => "1",
-        name     => encode_utf8("překladatel")
+        name     => encode_utf8("prekladatel")
     );
     $out->emptyTag(
         "field",
@@ -595,5 +595,7 @@ sub perl2xml {
     }
     $out->endTag("collection");
     $out->endTag("tellico");
-    $out->end();
+    my $xml = $out->end();
+    print $xml;
+    
 }
