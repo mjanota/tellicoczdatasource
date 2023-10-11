@@ -66,7 +66,7 @@ foreach my $ref (@refs) {
     $html = `wget -q -O '-' $ADDRESS/$ref`;
     ### $ref
     if ($ref =~ /(\d+)(\?lang=cz)?$/) {
-        $pmore = `wget -q -O '-' $ADDRESS/books/book-detail-more-info-ajax.php?bid=$1`;
+        $pmore = `wget -q -O '-' $ADDRESS/book-detail-more-info/$1`;
         ### $pmore
     }
     #		$html = get($ADDRESS.$ref);
@@ -164,6 +164,7 @@ sub get_titul {
     my $h     = shift;
     my $tree  = shift;
     my $title = $tree->look_down(_tag => 'h1', itemprop => 'name')->as_trimmed_text;
+    ### $title
     ($h->{title}, my $orig) = split /\s*\/\s*/, $title, 2;
     $h->{ encode_utf8('nazev-originalu') } = $orig if $orig;
     my @authors = $tree->look_down(_tag => 'h2', class => 'jmenaautoru')->look_down(_tag => 'a');
