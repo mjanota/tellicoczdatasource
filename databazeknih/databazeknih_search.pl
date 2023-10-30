@@ -66,7 +66,7 @@ foreach my $ref (@refs) {
     $html = `wget -q -O '-' $ADDRESS/$ref`;
     ### $ref
     if ($ref =~ /(\d+)(\?lang=cz)?$/) {
-        $pmore = `wget -q -O '-' $ADDRESS/books/book-detail-more-info-ajax.php?bid=$1`;
+        $pmore = `wget -q -O '-' $ADDRESS/book-detail-more-info/$1`;
         ### $pmore
     }
     #		$html = get($ADDRESS.$ref);
@@ -164,15 +164,21 @@ sub get_titul {
     my $h     = shift;
     my $tree  = shift;
     my $title = $tree->look_down(_tag => 'h1', itemprop => 'name')->as_trimmed_text;
+### $title
     ($h->{title}, my $orig) = split /\s*\/\s*/, $title, 2;
-    $h->{ encode_utf8('název-originálu') } = $orig if $orig;
+    $h->{ encode_utf8('nazev-originalu') } = $orig if $orig;
     my @authors = $tree->look_down(_tag => 'h2', class => 'jmenaautoru')->look_down(_tag => 'a');
     foreach my $auth (@authors) {
         push @{ $h->{author} }, $auth->as_trimmed_text;
     }
 
-    $h->{comments} = $tree->look_down(_tag => 'p', id => 'bdetdesc', itemprop => 'description')->as_trimmed_text
-        if $tree->look_down(_tag => 'p', id => 'bdetdesc', itemprop => 'description');
+    if ($tree->look_down(_tag => 'p', class => 'justify new2 odtop')) {
+        $h->{comments} = $tree->look_down(_tag => 'p', class => 'justify new2 odtop')->as_trimmed_text;
+        if ($h->{comments} =~ /^(.*)?\.\.\. cel/) {
+            $h->{comments} = $1;
+        }
+
+    }
 }
 
 my $I = 0;
@@ -235,7 +241,7 @@ sub get_translator {
     my ($h, $pmore) = @_;
     my @itrans = $pmore->look_down(_tag => 'a', href => qr/prekladatele/);
     #	@{ $$h{translator} } = map {$_->as_trimmed_text} @itrans if @itrans;
-    @{ $$h{ encode_utf8('překladatel') } } = map { $_->as_trimmed_text } @itrans if @itrans;
+    @{ $$h{ encode_utf8('prekladatel') } } = map { $_->as_trimmed_text } @itrans if @itrans;
 }
 
 sub get_years {
@@ -252,7 +258,7 @@ sub get_origtitle {
     $r = $r->as_HTML;
     ### origtitle
     ### $r
-    ($h->{ encode_utf8('název-originálu') }, $h->{cr_year}) = split /<span.*?<\/span>/, $1
+    ($h->{ encode_utf8('nazev-originalu') }, $h->{cr_year}) = split /<span.*?<\/span>/, $1
         if $r =~ /Orig.*?<\/span><h4>(.*?)<\/h4>/;
 }
 
@@ -275,43 +281,45 @@ sub generate_imgname {
 }
 
 sub perl2xml {
-	my $out = new XML::Writer(OUTPUT => *STDOUT);
+        my $out = new XML::Writer(OUTPUT => 'self');
 	print '<?xml version="1.0" encoding="UTF-8"?>';
-	print '<!DOCTYPE tellico PUBLIC "-//Robby Stephenson/DTD Tellico V9.0//EN" "http://periapsis.org/tellico/dtd/v9/tellico.dtd">';
-	$out->startTag("tellico",syntaxVersion => 9, xmlns => "http://periapsis.org/tellico/");
-		$out->startTag("collection", title => "My Books", type => 2);
+        print
+            '<!DOCTYPE tellico PUBLIC "-//Robby Stephenson/DTD Tellico V9.0//EN" "http://periapsis.org/tellico/dtd/v9/tellico.dtd">';
+        $out->startTag("tellico",    syntaxVersion => 9,          xmlns => "http://periapsis.org/tellico/");
+        $out->startTag("collection", title         => "My Books", type  => 2);
 			$out->startTag("fields");
 				$out->emptyTag("field", name => "_default");
 				$out->emptyTag("field", title=>"Link", flags=>"0", category=>encode_utf8("Obecné"), format=>"4", description=>"Odkaz", type=>"7", name=>"link");
 			$out->endTag("fields");
 
 	for (my $i = 0; $i < scalar(@BOOKS); $i++) {			
-			$out->startTag("entry",id=>$i);
-		foreach my $key ( sort keys %{ $BOOKS[$i] } ) {
-				if ( ref($BOOKS[$i]->{$key}) eq 'ARRAY' ) {
-					$out->startTag($key.'s');
+			$out->startTag("entry", id => $i);
+		foreach my $key (sort keys %{ $BOOKS[$i] }) {
+				if (ref($BOOKS[$i]->{$key}) eq 'ARRAY') {
+					$out->startTag($key . 's');
 						foreach (@{ $BOOKS[$i]->{$key} }) {
-							$out->dataElement($key,$_ ? encode_utf8($_): '');
+                                                        $out->dataElement($key, $_ ? encode_utf8($_) : '');
 						}
-					$out->endTag($key.'s');
+                                        $out->endTag($key . 's');
 				} else {
-					$out->dataElement($key,$BOOKS[$i]->{$key} ? encode_utf8($BOOKS[$i]->{$key}) : '');
+                                        $out->dataElement($key,
+                                            $BOOKS[$i]->{$key} ? encode_utf8($BOOKS[$i]->{$key}) : '');
 				}
 		}
 			$out->endTag("entry");
 	}
-	if ( @IMAGES) {
+	if (@IMAGES) {
 			$out->startTag("images");
 		foreach my $img (@IMAGES) {
 				my $data = delete $img->{data};
-				$out->dataElement( "image", $data, %$img );
+                                $out->dataElement("image", $data, %$img);
 				#$out->emptyTag("image",%$img);
 		}
 			$out->endTag("images");
 	}
 		$out->endTag("collection");
 	$out->endTag("tellico");
-	$out->end();
+        my $xml = $out->end();
+        print $xml;
+
 }
-
-

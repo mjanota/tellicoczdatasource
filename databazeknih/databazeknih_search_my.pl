@@ -172,8 +172,13 @@ sub get_titul {
         push @{ $h->{author} }, $auth->as_trimmed_text;
     }
 
-    $h->{comments} = $tree->look_down(_tag => 'p', id => 'bdetdesc', itemprop => 'description')->as_trimmed_text
-        if $tree->look_down(_tag => 'p', id => 'bdetdesc', itemprop => 'description');
+    if ($tree->look_down(_tag => 'p', class => 'justify new2 odtop')) {
+        $h->{comments} = $tree->look_down(_tag => 'p', class => 'justify new2 odtop')->as_trimmed_text;
+        if ($h->{comments} =~ /^(.*)?\.\.\. cel/) {
+            $h->{comments} = $1;
+        }
+
+    }
 }
 
 my $I = 0;
