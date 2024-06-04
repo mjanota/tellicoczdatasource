@@ -34,7 +34,7 @@ getopt("Hailprt", \%option);
 
 if (defined $option{h}) {
     print <<EOF;
-Usage: ./kosmas_search.pl
+Usage: ./databazeknih_search.pl
   -h,       help
   -a <author>   author of a book
   -i <isbn>
@@ -59,7 +59,6 @@ $html = `wget -q -O '-'  $ADDRESS/search$getdata`;
 my @refs = get_ref($html);
 
 ### @refs
-# exit 0;
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
@@ -164,7 +163,11 @@ sub get_titul {
     my $h     = shift;
     my $tree  = shift;
     my $title = $tree->look_down(_tag => 'h1', itemprop => 'name')->as_trimmed_text;
-### $title
+    my $rest = $tree->look_down(_tag => 'h1', itemprop => 'name')->look_down(_tag => 'em')->as_trimmed_text
+        if $tree->look_down(_tag => 'h1', itemprop => 'name')->look_down(_tag => 'em');
+    ### $title
+    $title =~ s/$rest// if $rest;
+
     ($h->{title}, my $orig) = split /\s*\/\s*/, $title, 2;
     $h->{ encode_utf8('nazev-originalu') } = $orig if $orig;
     my @authors = $tree->look_down(_tag => 'h2', class => 'jmenaautoru')->look_down(_tag => 'a');
@@ -194,6 +197,7 @@ sub get_image {
     my $imgdata = `wget -q -O '-' $src`;
 
     (undef, my $imgtype) = split /\./, basename($src);
+    $imgtype =~ s/\?.*//;
     my $imgname = generate_imgname($imgdata) . "." . $imgtype;
     $$h{cover}   = $imgname;
     $img{format} = lc($imgtype);
@@ -202,7 +206,7 @@ sub get_image {
     $img{height} = 150;
     #	$img{'link'} = 'true';
     $img{data} = encode_base64($imgdata);
-    #	print "$src.\n";
+    ### %img
     return {%img};
 }
 
