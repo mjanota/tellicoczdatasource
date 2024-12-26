@@ -62,6 +62,7 @@ my @refs = get_ref($html);
 exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
+    $ref =~ s/^\///;
     $html = `wget -q -O '-' $ADDRESS/$ref`;
     ### $ref
     if ($ref =~ /(\d+)(\?lang=cz)?$/) {
@@ -143,7 +144,7 @@ sub html2perl {
     get_data(\%h, HTML::TreeBuilder->new_from_content($pmore));
     # print Dumper(\%h);
     # exit 1;
-    my $img = $content->look_down(_tag => 'img', class => 'kniha_img');
+    my $img = $content->look_down(_tag => 'img', class => qr/kniha_img/);
     push @IMAGES, get_image(\%h, $img->attr('src')) if $img;
     return {%h};
 }
@@ -607,5 +608,5 @@ sub perl2xml {
     $out->endTag("tellico");
     my $xml = $out->end();
     print $xml;
-    
+
 }
