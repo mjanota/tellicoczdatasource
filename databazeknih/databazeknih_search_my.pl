@@ -171,7 +171,7 @@ sub get_titul {
 
     ($h->{title}, my $orig) = split /\s*\/\s*/, $title, 2;
     $h->{ encode_utf8('nazev-originalu') } = $orig if $orig;
-    my @authors = $tree->look_down(_tag => 'h2', class => 'jmenaautoru')->look_down(_tag => 'a');
+    my @authors = $tree->look_down(_tag => 'span', itemprop => 'author')->look_down(_tag => 'a');
     foreach my $auth (@authors) {
         push @{ $h->{author} }, $auth->as_trimmed_text;
     }
