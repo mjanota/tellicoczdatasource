@@ -63,8 +63,12 @@ exit 0 if scalar @refs < 1;
 
 foreach my $ref (@refs) {
     $ref =~ s/^\///;
-    $html = `wget -q -O '-' $ADDRESS/$ref`;
     ### $ref
+    $html = `wget -q -O '-' $ADDRESS/$ref`;
+    $html =~ s/<ol.*<\/ol>//gs;
+
+    ### $html
+
     if ($ref =~ /(\d+)(\?lang=cz)?$/) {
         $pmore = `wget -q -O '-' $ADDRESS/book-detail-more-info/$1`;
         ### $pmore
@@ -163,15 +167,18 @@ sub get_data {
 sub get_titul {
     my $h     = shift;
     my $tree  = shift;
-    my $title = $tree->look_down(_tag => 'h1', itemprop => 'name')->as_trimmed_text;
-    my $rest = $tree->look_down(_tag => 'h1', itemprop => 'name')->look_down(_tag => 'em')->as_trimmed_text
-        if $tree->look_down(_tag => 'h1', itemprop => 'name')->look_down(_tag => 'em');
+    my $title = $tree->look_down(_tag => 'h1', class => 'oddown_five')->as_trimmed_text;
+
+    my $rest = $tree->look_down(_tag => 'h1', class => 'oddown_five')->look_down(_tag => 'em')->as_trimmed_text
+        if $tree->look_down(_tag => 'h1', class => 'oddown_five')->look_down(_tag => 'em');
+
     ### $title
     $title =~ s/$rest// if $rest;
 
     ($h->{title}, my $orig) = split /\s*\/\s*/, $title, 2;
     $h->{ encode_utf8('nazev-originalu') } = $orig if $orig;
-    my @authors = $tree->look_down(_tag => 'span', itemprop => 'author')->look_down(_tag => 'a');
+    my @authors = $tree->look_down(_tag => 'span', class => 'author')->look_down(_tag => 'a');
+
     foreach my $auth (@authors) {
         push @{ $h->{author} }, $auth->as_trimmed_text;
     }
