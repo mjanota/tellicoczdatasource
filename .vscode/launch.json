@@ -5,6 +5,14 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "-t \"Prazske orgie\""
+        },
+        {
             "type": "perl",
             "request": "launch",
             "name": "Perl-Debug local",
@@ -14,7 +22,9 @@
             "execArgs": [],
             "root": "${workspaceRoot}/",
             "inc": [],
-            "args": ["-t \"Muz, ktery se smeje\""],
+            "args": [
+                "-t \"Muz, ktery se smeje\""
+            ],
             "env": {},
             "debugRaw": false,
             "debugLog": false,
