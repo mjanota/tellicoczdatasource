@@ -1,0 +1,152 @@
+{
+  "add_default_field": true,
+  "fields": [
+    {
+      "name": "title",
+      "title": "Název",
+      "category": "Obecné",
+      "flags": "4",
+      "format": "4",
+      "type": "1"
+    },
+    {
+      "name": "author",
+      "title": "Autor",
+      "category": "Obecné",
+      "flags": "7",
+      "format": "2",
+      "type": "1"
+    },
+    {
+      "name": "nazev-originalu",
+      "title": "Název originálu",
+      "category": "Obecné",
+      "flags": "3",
+      "format": "4",
+      "type": "1"
+    },
+    {
+      "name": "subtitle",
+      "title": "Podtitul",
+      "category": "Obecné",
+      "flags": "0",
+      "format": "1",
+      "type": "1"
+    },
+    {
+      "name": "pur_price",
+      "title": "Kupní cena",
+      "category": "Publikování",
+      "flags": "0",
+      "format": "4",
+      "type": "1"
+    },
+    {
+      "name": "publisher",
+      "title": "Vydavatel",
+      "category": "Obecné",
+      "flags": "7",
+      "format": "4",
+      "type": "1"
+    },
+    {
+      "name": "edice",
+      "title": "Edice",
+      "category": "Obecné",
+      "flags": "6",
+      "format": "4",
+      "type": "1"
+    },
+    {
+      "name": "edition",
+      "title": "Vydání",
+      "category": "Publikování",
+      "flags": "1",
+      "format": "0",
+      "type": "6"
+    },
+    {
+      "name": "cr_year",
+      "title": "Rok copyrightu",
+      "category": "Publikování",
+      "flags": "3",
+      "format": "4",
+      "type": "6"
+    },
+    {
+      "name": "pub_year",
+      "title": "Rok vydání",
+      "category": "Publikování",
+      "flags": "2",
+      "format": "4",
+      "type": "6"
+    },
+    {
+      "name": "isbn",
+      "title": "ISBN č. ",
+      "category": "Publikování",
+      "flags": "0",
+      "format": "4",
+      "type": "1",
+      "description": "Mezinárodní standardní knižní číslo"
+    },
+    {
+      "name": "binding",
+      "title": "Vazba",
+      "category": "Publikování",
+      "flags": "2",
+      "format": "4",
+      "type": "3",
+      "allowed": "E-Book;Paperback;Žurnál;Časopis;Velký paperback;Vázaná;Brožovaná;Pevná vazba;vázaná;brožovaná"
+    },
+    {
+      "name": "pages",
+      "title": "Stran",
+      "category": "Publikování",
+      "flags": "0",
+      "format": "4",
+      "type": "6"
+    },
+    {
+      "name": "language",
+      "title": "Jazyk originálu",
+      "category": "Publikování",
+      "flags": "7",
+      "format": "4",
+      "type": "1"
+    },
+    {
+      "name": "prekladatel",
+      "title": "Překladatel",
+      "category": "Publikování",
+      "flags": "7",
+      "format": "2",
+      "type": "1"
+    },
+    {
+      "name": "comments",
+      "title": "Téma",
+      "category": "Téma",
+      "flags": "0",
+      "format": "4",
+      "type": "2"
+    },
+    {
+      "name": "cover",
+      "title": "Přední obálka",
+      "category": "Přední obálka",
+      "flags": "0",
+      "format": "4",
+      "type": "10"
+    },
+    {
+      "name": "link",
+      "title": "Link",
+      "category": "Obecné",
+      "flags": "0",
+      "format": "4",
+      "type": "7",
+      "description": "Odkaz"
+    }
+  ]
+}

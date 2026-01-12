@@ -5,10 +5,10 @@
 
 # Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_SCRIPT="$SCRIPT_DIR/databazeknih/databazeknih_search_my.py"
+PYTHON_SCRIPT="databazeknih_search.py"
 
 # Check if the Python script exists
-if [ ! -f "$PYTHON_SCRIPT" ]; then
+if [ ! -f "$SCRIPT_DIR/databazeknih/$PYTHON_SCRIPT" ]; then
     echo "Error: Python script not found at $PYTHON_SCRIPT"
     exit 1
 fi
@@ -28,4 +28,4 @@ cd "$SCRIPT_DIR/databazeknih"
 
 # Run the Python script with uv, passing all arguments
 # Redirect stderr to log file while keeping stdout for XML output
-uv run "$PYTHON_SCRIPT" "$@" 2>"$LOG_FILE"
+uv run "$PYTHON_SCRIPT" --output-profile my_fields.json "$@" 2>"$LOG_FILE"

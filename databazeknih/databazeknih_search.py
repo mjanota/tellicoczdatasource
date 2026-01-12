@@ -15,6 +15,7 @@ import base64
 import re
 from urllib.parse import urljoin
 import time
+import json
 
 # Configure logging to stderr
 logging.basicConfig(
@@ -39,6 +40,10 @@ class DatabazeknihSearch:
         parser = argparse.ArgumentParser(description='Search Czech book database (databazeknih.cz)')
         parser.add_argument('-t', '--title', required=True, help='Title of the book')
         parser.add_argument('-d', '--debug', action='store_true', help='Enable debug logging')
+        parser.add_argument(
+            "--output-profile",
+            help="Path to JSON file with field definitions for Tellico XML output",
+        )
         return parser.parse_args(args)
 
     def get_page_content(self, url):
@@ -220,40 +225,48 @@ class DatabazeknihSearch:
         # Find span with "Originální název:" and get the text after it
         orig_span = detail_div.find('span', {'class': 'category'}, string=lambda text: text and 'Originální název' in text)
         if orig_span:
-            # Get all text content after the span until <br>
+            # Get all content after the span until <br>
             current = orig_span.next_sibling
-            title_parts = []
+            title = None
             year = None
+            comma_found = False  # Track if we found the gray comma
 
-            while current and current.name != 'br':
-                if hasattr(current, 'get_text'):
-                    text = current.get_text().strip()
-                    if text and text != ',':
-                        # Check if it's a year (4 digits)
-                        year_match = re.search(r'(\d{4})', text)
-                        if year_match and not title_parts:  # Year found but no title yet
-                            continue
-                        elif year_match and title_parts:  # Year found after title
-                            year = year_match.group(1)
-                        else:
-                            title_parts.append(text)
-                elif isinstance(current, str):
+            while current and (not hasattr(current, "name") or current.name != "br"):
+                if isinstance(current, str):
                     text = current.strip()
-                    if text and text not in [',', ' ']:
-                        # Check if it's a year
-                        year_match = re.search(r'(\d{4})', text)
-                        if year_match:
-                            year = year_match.group(1)
-                        else:
-                            title_parts.append(text)
+                    if text:
+                        if comma_found:
+                            # After comma, check if it's a year
+                            year_match = re.search(r"^(\d{4})\s*$", text)
+                            if year_match:
+                                year = year_match.group(1)
+                        elif not title:
+                            # Before comma, this is the title
+                            title = text
+                elif hasattr(current, "name"):
+                    # Check for comma in gray span
+                    if current.name == "span" and "gray" in current.get("class", []):
+                        comma_found = True
+                    else:
+                        text = current.get_text().strip()
+                        if text:
+                            if comma_found:
+                                # After comma, check if it's a year
+                                year_match = re.search(r"^(\d{4})$", text)
+                                if year_match:
+                                    year = year_match.group(1)
+                            elif not title:
+                                # Before comma, this is the title
+                                title = text
+
                 current = current.next_sibling
 
-            if title_parts:
-                logger.info(f"Found original title: {' '.join(title_parts).strip()}")
-                book_data['nazev-originalu'] = ' '.join(title_parts).strip()
+            if title:
+                logger.info("Found original title: %s", title)
+                book_data["nazev-originalu"] = title
             if year:
-                logger.info(f"Found copyright year: {year}")
-                book_data['cr_year'] = year
+                logger.info("Found copyright year: %s", year)
+                book_data["cr_year"] = year
 
     def get_data_from_more(self, book_data, pmore):
         """Extract additional data from 'more info' page"""
@@ -356,7 +369,7 @@ class DatabazeknihSearch:
 
         return None
 
-    def create_xml_output(self, books, images):
+    def create_xml_output(self, books, images, profile_path=None):
         """Generate XML output in Tellico format"""
         # Create root element
         root = ET.Element('tellico', 
@@ -367,6 +380,32 @@ class DatabazeknihSearch:
         collection = ET.SubElement(root, 'collection', 
                                  title='My Books', 
                                  type='2')
+
+        # Add field definitions if profile is provided
+        if profile_path:
+            try:
+                with open(profile_path, "r", encoding="utf-8") as f:
+                    profile_data = json.load(f)
+
+                fields = ET.SubElement(collection, "fields")
+
+                # Add field definitions from JSON
+                for field_def in profile_data.get("fields", []):
+                    field_elem = ET.SubElement(fields, "field")
+                    for attr, value in field_def.items():
+                        field_elem.set(attr, value)
+
+                # Add special default field if specified in profile
+                if profile_data.get("add_default_field", True):
+                    ET.SubElement(fields, "field", name="_default")
+
+                logger.info(f"Loaded field definitions from: {profile_path}")
+            except FileNotFoundError:
+                logger.error(f"Profile file not found: {profile_path}")
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing profile JSON: {e}")
+            except Exception as e:
+                logger.error(f"Error loading profile: {e}")
 
         # Add book entries
         for i, book in enumerate(books):
@@ -403,7 +442,7 @@ class DatabazeknihSearch:
 
         return xml_declaration + doctype + xml_str
 
-    def search_books(self, title):
+    def search_books(self, title, profile_path=None):
         """Main search function"""
         books = []
         images = []
@@ -464,26 +503,27 @@ class DatabazeknihSearch:
 
         # Generate and output XML
         if books:
-            xml_output = self.create_xml_output(books, images)
+            xml_output = self.create_xml_output(books, images, profile_path)
             print(xml_output)
+
 
 def main(args=None):
     """Main function"""
     searcher = DatabazeknihSearch()
     parsed_args = searcher.parse_arguments(args)
-    
+
     # Set logging level based on debug argument
     if parsed_args.debug:
         logger.setLevel(logging.DEBUG)
         # Also set handler level to DEBUG
         for handler in logger.handlers:
             handler.setLevel(logging.DEBUG)
-    
+
     if not parsed_args.title:
         logger.error("Title is required")
         sys.exit(1)
-    
-    searcher.search_books(parsed_args.title)
+
+    searcher.search_books(parsed_args.title, parsed_args.output_profile)
 
 if __name__ == '__main__':
     main()
