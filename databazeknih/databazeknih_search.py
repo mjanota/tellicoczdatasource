@@ -16,6 +16,7 @@ import re
 from urllib.parse import urljoin
 import time
 import json
+from datetime import date
 
 # Configure logging to stderr
 logging.basicConfig(
@@ -40,6 +41,12 @@ class DatabazeknihSearch:
         parser = argparse.ArgumentParser(description='Search Czech book database (databazeknih.cz)')
         parser.add_argument('-t', '--title', required=True, help='Title of the book')
         parser.add_argument('-d', '--debug', action='store_true', help='Enable debug logging')
+        parser.add_argument(
+            "-c",
+            "--count",
+            type=int,
+            help="Maximum number of found books to process before stopping search",
+        )
         parser.add_argument(
             "--output-profile",
             help="Path to JSON file with field definitions for Tellico XML output",
@@ -91,7 +98,9 @@ class DatabazeknihSearch:
                 editions_html = self.get_page_content(editions_url)
                 if editions_html:
                     editions_soup = BeautifulSoup(editions_html, 'html.parser')
-                    edition_links = editions_soup.find_all('a', {'class': 'bigger', 'href': re.compile(r'dalsi-vydani')})
+                    edition_links = editions_soup.find_all(
+                        "a", {"class": "bigger", "href": re.compile(r"prehled-knihy")}
+                    )
 
                     for elink in edition_links:
                         ehref = elink.get('href')
@@ -103,7 +112,7 @@ class DatabazeknihSearch:
 
         return refs
 
-    def html2book(self, html, pmore_html, book_url, images):
+    def html2book(self, html, pmore_html, book_url, images, collect_images=True):
         """Convert HTML content to book data dictionary"""
         if not html:
             return {}
@@ -134,7 +143,7 @@ class DatabazeknihSearch:
 
         # Get cover image
         img_tag = content.find('img', {'class': re.compile(r'kniha_img')})
-        if img_tag and img_tag.get('src'):
+        if collect_images and img_tag and img_tag.get("src"):
             image_data = self.get_image(book_data, img_tag['src'])
             if image_data:
                 images.append(image_data)
@@ -143,11 +152,13 @@ class DatabazeknihSearch:
 
     def get_title(self, book_data, content):
         """Extract title and author information"""
-        title_h1 = content.find('h1', {'class': 'oddown_five'})
+        title_h1 = content.find("h1", {"class": "oddown_zero"})
         if not title_h1:
             return
 
         title_text = title_h1.get_text(strip=True)
+
+        logger.info("Extracted title text: %s", title_text)
 
         # Remove subtitle in em tag
         em_tag = title_h1.find('em')
@@ -195,9 +206,19 @@ class DatabazeknihSearch:
             book_data['publisher'] = publishers
 
     def get_pub_year(self, book_data, content):
-        """Extract publication year from detail_description"""
+        """Extract publication year from the main content block."""
         if not content:
             return
+
+        # New layout: year is placed in a lora/lineHeightMid block, often after genre links.
+        year_block = content.select_one("div.lora.lineHeightMid")
+        if year_block:
+            block_text = year_block.get_text(" ", strip=True)
+            year_matches = re.findall(r"\b(\d{4})\b", block_text)
+            if year_matches:
+                book_data["pub_year"] = year_matches[-1]
+                logger.info("Found publication year: %s", book_data["pub_year"])
+                return
 
         detail_div = content.find('div', {'class': 'detail_description'})
         if not detail_div:
@@ -273,6 +294,63 @@ class DatabazeknihSearch:
         if not pmore:
             return
 
+        # New layout: rows with <div class="book-details__row"><dt>..</dt><dd>..</dd></div>
+        detail_rows = pmore.select("div.book-details__row")
+        for row in detail_rows:
+            dt = row.find("dt")
+            dd = row.find("dd")
+            if not dt or not dd:
+                continue
+
+            label = dt.get_text(strip=True).rstrip(":")
+            value = dd.get_text(" ", strip=True)
+            if not value:
+                continue
+
+            if label == "Originální název":
+                # Pattern like: "Original Title, 2013"
+                year_match = re.search(r"^(.*),\s*(\d{4})\s*$", value)
+                if year_match:
+                    book_data["nazev-originalu"] = year_match.group(1).strip()
+                    book_data["cr_year"] = year_match.group(2)
+                    logger.info(
+                        "Found original title: %s", book_data["nazev-originalu"]
+                    )
+                    logger.info("Found copyright year: %s", book_data["cr_year"])
+                else:
+                    book_data["nazev-originalu"] = value
+                    logger.info(
+                        "Found original title: %s", book_data["nazev-originalu"]
+                    )
+
+            elif label == "Překlad":
+                translators = [
+                    tr.get_text(strip=True)
+                    for tr in dd.find_all("a", {"href": re.compile(r"prekladatele")})
+                ]
+                if translators:
+                    book_data["prekladatel"] = translators
+                    logger.info("Found translators %s", ", ".join(translators))
+
+            elif label == "Počet stran":
+                book_data["pages"] = value
+                logger.info("Found number of pages: %s", book_data["pages"])
+
+            elif label == "Jazyk vydání":
+                book_data["language"] = value
+
+            elif label == "Vazba knihy":
+                binding_lower = value.lower()
+                if "brožovaná" in binding_lower:
+                    book_data["binding"] = "Brožovaná"
+                elif "vázaná" in binding_lower:
+                    book_data["binding"] = "Vázaná"
+                else:
+                    book_data["binding"] = value
+
+            elif label == "ISBN":
+                book_data["isbn"] = value
+
         # Find all category spans to extract data systematically
 
         if (pages_span := pmore.find('span', {'itemprop': 'numberOfPages'})):
@@ -317,7 +395,13 @@ class DatabazeknihSearch:
                 if next_sibling and isinstance(next_sibling, str):
                     binding_text = next_sibling.strip()
                     if binding_text:
-                        book_data['binding'] = binding_text
+                        binding_lower = binding_text.lower()
+                        if "brožovaná" in binding_lower:
+                            book_data["binding"] = "Brožovaná"
+                        elif "vázaná" in binding_lower:
+                            book_data["binding"] = "Vázaná"
+                        else:
+                            book_data["binding"] = binding_text
 
             elif category_text == 'ISBN:':
                 # Find ISBN span
@@ -371,6 +455,8 @@ class DatabazeknihSearch:
 
     def create_xml_output(self, books, images, profile_path=None):
         """Generate XML output in Tellico format"""
+        has_acquired_date_field = False
+
         # Create root element
         root = ET.Element('tellico', 
                          syntaxVersion='9',
@@ -388,6 +474,14 @@ class DatabazeknihSearch:
                     profile_data = json.load(f)
 
                 fields = ET.SubElement(collection, "fields")
+
+                field_names = {
+                    str(field_def.get("name", "")).strip()
+                    for field_def in profile_data.get("fields", [])
+                }
+                has_acquired_date_field = (
+                    "datum-nabytí" in field_names or "datum-nabyti" in field_names
+                )
 
                 # Add field definitions from JSON
                 for field_def in profile_data.get("fields", []):
@@ -408,8 +502,15 @@ class DatabazeknihSearch:
                 logger.error(f"Error loading profile: {e}")
 
         # Add book entries
+        today = date.today()
         for i, book in enumerate(books):
             entry = ET.SubElement(collection, 'entry', id=str(i))
+
+            if has_acquired_date_field:
+                acquired = ET.SubElement(entry, "datum-nabytí", calendar="gregorian")
+                ET.SubElement(acquired, "year").text = str(today.year)
+                ET.SubElement(acquired, "month").text = f"{today.month:02d}"
+                ET.SubElement(acquired, "day").text = f"{today.day:02d}"
 
             for key, value in sorted(book.items()):
                 if isinstance(value, list):
@@ -442,7 +543,7 @@ class DatabazeknihSearch:
 
         return xml_declaration + doctype + xml_str
 
-    def search_books(self, title, profile_path=None):
+    def search_books(self, title, profile_path=None, debug_mode=False, max_books=None):
         """Main search function"""
         books = []
         images = []
@@ -492,14 +593,35 @@ class DatabazeknihSearch:
                 pmore_html = self.get_page_content(more_url)
 
             # Parse book data
-            book_data = self.html2book(book_html, pmore_html, book_url, images)
+            book_data = self.html2book(
+                book_html,
+                pmore_html,
+                book_url,
+                images,
+                collect_images=not debug_mode,
+            )
             if book_data:
                 books.append(book_data)
+
+                if debug_mode:
+                    print(json.dumps(book_data, ensure_ascii=False, indent=2))
+                    print()
+
+                if max_books and len(books) >= max_books:
+                    logger.info(
+                        "Reached requested book limit (%s), stopping search",
+                        max_books,
+                    )
+                    break
 
             # Add small delay to be respectful to the server
             time.sleep(0.5)
 
         logger.info(f"Successfully processed {len(books)} books")
+
+        # In debug mode, records are printed one by one during processing.
+        if debug_mode:
+            return
 
         # Generate and output XML
         if books:
@@ -523,7 +645,16 @@ def main(args=None):
         logger.error("Title is required")
         sys.exit(1)
 
-    searcher.search_books(parsed_args.title, parsed_args.output_profile)
+    if parsed_args.count is not None and parsed_args.count <= 0:
+        logger.error("Count must be a positive integer")
+        sys.exit(1)
+
+    searcher.search_books(
+        parsed_args.title,
+        parsed_args.output_profile,
+        debug_mode=parsed_args.debug,
+        max_books=parsed_args.count,
+    )
 
 if __name__ == '__main__':
     main()

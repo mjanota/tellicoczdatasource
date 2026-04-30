@@ -13,6 +13,22 @@
             "args": "-t \"Totalni raus\""
         },
         {
+            "name": "Databazeknih py",
+            "type": "debugpy",
+            "request": "launch",
+            "python": "${workspaceFolder}/databazeknih/.venv/bin/python",
+            "program": "${workspaceFolder}/databazeknih/databazeknih_search.py",
+            "cwd": "${workspaceFolder}/databazeknih",
+            "console": "integratedTerminal",
+            "args": [
+                "-t",
+                "${input:bookTitle}",
+                "-d",
+                "-c",
+                "${input:bookCount}"
+            ]
+        },
+        {
             "type": "perl",
             "request": "launch",
             "name": "Perl-Debug local",
@@ -41,6 +57,20 @@
             "stopOnEntry": true,
             "port": 5000,
             "sessions": "single"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "bookTitle",
+            "type": "promptString",
+            "description": "Nazev knihy (volitelne)",
+            "default": ""
+        },
+        {
+            "id": "bookCount",
+            "type": "promptString",
+            "description": "Pocet nalezenych knih (pro -c)",
+            "default": "3"
         }
     ]
 }
